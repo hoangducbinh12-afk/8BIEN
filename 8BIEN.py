@@ -4,23 +4,20 @@ import numpy as np
 import json
 from datetime import datetime
 
-# --- 1. CONFIG GIAO DIỆN LUXURY ---
-st.set_page_config(page_title="8-BIT MATRIX V3.4", layout="centered")
+# --- 1. CONFIG GIAO DIỆN ---
+st.set_page_config(page_title="8-BIT MASTER V3.5", layout="centered")
 
 st.markdown("""
     <style>
     html, body, [class*="st-"] { font-size: 0.72rem !important; }
     .dan-box { 
-        background-color: #f0f7ff; border: 1.5px solid #1e3a8a; border-radius: 8px; 
+        background-color: #ffffff; border: 1.5px solid #1e3a8a; border-radius: 8px; 
         padding: 8px; margin-bottom: 10px; font-family: monospace; 
-        font-weight: 700; color: #1e3a8a; text-align: center; font-size: 0.9rem;
+        font-weight: 700; color: #1e3a8a; text-align: center; font-size: 0.88rem;
     }
     .stDataFrame td, .stDataFrame th { padding: 1px 2px !important; font-size: 0.65rem !important; text-align: center !important; }
-    .stButton button { 
-        width: 100%; border-radius: 8px; height: 38px; font-weight: 700; 
-        background-color: #1e3a8a !important; color: white !important;
-    }
-    .prob-header { background-color: #1e3a8a; color: white; padding: 5px; border-radius: 5px; text-align: center; margin-bottom: 10px; }
+    .stButton button { width: 100%; border-radius: 8px; height: 38px; font-weight: 700; background-color: #1e3a8a !important; color: white !important; }
+    .highlight-text { color: #f59e0b; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -36,19 +33,23 @@ def get_8bit(n):
                 1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
     except: return [0]*8
 
-# --- 3. MÁY QUÉT 8 LUỒNG ĐIỀU KIỆN THỰC TẾ ---
-def advanced_matrix_scan(history, last_n):
-    if len(history) < 2 or last_n == -1:
+# --- 3. MÁY QUÉT 8 LUỒNG (CHỈ XÉT 10 KỲ GẦN NHẤT) ---
+def scan_10_kỳ_ma_trận(history, last_n):
+    # ÉP BUỘC: Chỉ lấy 11 dòng cuối để có 10 cặp chuyển đổi
+    # (Nếu history ít hơn 11 thì lấy hết)
+    history_10 = history[:11] 
+    
+    if len(history_10) < 2 or last_n == -1:
         return [0.5]*8, []
     
-    recent = history[:11]
-    bits_list = [get_8bit(h["Số"]) for h in recent][::-1] 
+    # Chuyển thành bit và đảo ngược để chạy từ cũ đến mới (cho đúng logic chuyển tiếp)
+    bits_list = [get_8bit(h["Số"]) for h in history_10][::-1] 
     current_bits = get_8bit(last_n)
     
     master_scores = [0.0] * 8
     debug_info = []
     
-    # 8 Lần quét dựa trên 8 bit thực tế vừa nổ
+    # Quét 8 luồng điều kiện dựa trên 10 kỳ gần nhất
     for b_idx in range(8):
         state = current_bits[b_idx]
         relevant_next = []
@@ -62,20 +63,24 @@ def advanced_matrix_scan(history, last_n):
             for j in range(8):
                 master_scores[j] += ratios[j]
             
-            # Lưu thông tin giải mã
+            # Ghi nhật ký giải mã để mày check
             debug_info.append({
-                "Điều kiện": f"Bit {b_idx+1} ({BIT_LABELS[b_idx]}) = {state}",
-                "Kết quả gợi ý (8 Bit kỳ sau)": " | ".join([f"{r*100:.0f}%" for r in ratios])
+                "Bit Gốc": f"B{b_idx+1} ({BIT_LABELS[b_idx]})",
+                "Trạng thái": "1 (Lẻ/To/Th)" if state else "0 (Chẵn/Bé/Kp)",
+                "Số lần xuất hiện trong 10 kỳ": len(relevant_next),
+                "Tỷ lệ 8 Bit kỳ sau": " | ".join([f"{int(r*100)}%" for r in ratios])
             })
 
+    # Tính xác suất hội tụ (Trung bình cộng của 8 luồng)
     final_probs = [s / 8 for s in master_scores]
     return final_probs, debug_info
 
-def get_v34_rank(history, last_n):
-    probs, debug = advanced_matrix_scan(history, last_n)
+def get_v35_rank(history, last_n):
+    probs, debug = scan_10_kỳ_ma_trận(history, last_n)
     scores = []
     for i in range(100):
         bits = get_8bit(i)
+        # Chấm điểm dựa trên xác suất hội tụ (Match Score)
         match_val = sum(bits[j] * probs[j] + (1 - bits[j]) * (1 - probs[j]) for j in range(8))
         scores.append({"S": f"{i:02d}", "Match": match_val})
     
@@ -88,22 +93,22 @@ if 'history' not in st.session_state: st.session_state.history = []
 if 'last_n' not in st.session_state: st.session_state.last_n = -1
 
 # --- 5. GIAO DIỆN ---
-st.title("🧬 MATRIX SCAN V3.4 (TRANSPARENT)")
+st.title("🧬 MATRIX SCAN V3.5 (10-KỲ ONLY)")
 
-with st.expander("➕ CẬP NHẬT KẾT QUẢ", expanded=True):
+with st.expander("📝 CẬP NHẬT KỲ MỚI", expanded=True):
     max_k = max([int(h.get("Kỳ", 0)) for h in st.session_state.history]) if st.session_state.history else 0
     c1, c2, c3 = st.columns([1.5, 1, 1.2])
     with c1: num_in = st.text_input("GĐB vừa nổ:", key="n_in")
     with c2: ky_in = st.number_input("Kỳ:", value=max_k + 1, step=1)
     with c3: day_in = st.text_input("Ngày:", datetime.now().strftime("%d/%m"))
     
-    if st.button("🚀 LƯU & GIẢI MÃ MA TRẬN"):
+    if st.button("🚀 LƯU & GIẢI MÃ (QUÉT 10 KỲ)"):
         if len(num_in) >= 2:
             val = int(num_in[-2:])
-            df_rank, _, _ = get_v34_rank(st.session_state.history, st.session_state.last_n)
+            df_rank, _, _ = get_v35_rank(st.session_state.history, st.session_state.last_n)
             r_val = df_rank[df_rank['S'] == f"{val:02d}"]['R'].values[0] if not df_rank.empty else 0
             
-            st.session_state.history.append({"Ngày": day_in, "Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_val)})
+            st.session_state.history.insert(0, {"Ngày": day_in, "Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_val)})
             st.session_state.last_n = val
             st.session_state.history = sorted(st.session_state.history, key=lambda x: int(x.get("Kỳ", 0)), reverse=True)
             st.rerun()
@@ -111,11 +116,11 @@ with st.expander("➕ CẬP NHẬT KẾT QUẢ", expanded=True):
 st.divider()
 
 if st.session_state.history:
-    df_rank, probs, debug_info = get_v34_rank(st.session_state.history, st.session_state.last_n)
-    t1, t2, t3 = st.tabs(["🎯 DÀN TINH ANH", "📊 NHẬT KÝ", "🔍 GIẢI MÃ MA TRẬN"])
+    df_rank, probs, debug_info = get_v35_rank(st.session_state.history, st.session_state.last_n)
+    t1, t2, t3 = st.tabs(["🎯 DÀN TINH ANH", "📊 NHẬT KÝ", "🔍 GIẢI MÃ 10 KỲ"])
     
     with t1:
-        st.write(f"🔢 Nhịp từ số: **{st.session_state.last_n:02d}**")
+        st.write(f"🔢 Gốc nhịp: **{st.session_state.last_n:02d}** (Căn cứ trên 10 kỳ gần nhất)")
         ca, cb = st.columns(2)
         with ca:
             n1 = st.number_input("Dàn A:", 1, 100, 50)
@@ -137,19 +142,17 @@ if st.session_state.history:
         st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
 
     with t3:
-        st.markdown("<div class='prob-header'>PHÂN TÍCH 8 LUỒNG XÁC SUẤT CHÉO</div>", unsafe_allow_html=True)
-        st.write("Dưới đây là tỷ lệ 8 bit kỳ sau dựa trên từng bit vừa nổ (10 kỳ gần nhất):")
+        st.info(f"Đang phân tích 8 luồng từ số gốc {st.session_state.last_n:02d} trong 10 kỳ gần nhất.")
         st.table(pd.DataFrame(debug_info))
         
-        st.divider()
-        st.write("📊 **Xác suất hội tụ cuối cùng cho kỳ tiếp theo:**")
+        st.write("📊 **Xác suất hội tụ kỳ sau (Trung bình 8 luồng):**")
         cols = st.columns(4)
         for i, (label, p) in enumerate(zip(BIT_LABELS, probs)):
-            cols[i%4].metric(label, f"{p*100:.0f}%")
+            cols[i%4].metric(label, f"{int(p*100)}%")
 
 with st.sidebar:
-    st.header("⚙️ DATA")
-    if st.button("🔴 RESET"):
+    st.header("⚙️ DỮ LIỆU")
+    if st.button("🔴 XOÁ SẠCH"):
         st.session_state.history = []; st.session_state.last_n = -1; st.rerun()
     up = st.file_uploader("Nạp file:", type="json")
     if up:
@@ -159,4 +162,4 @@ with st.sidebar:
             st.session_state.history = sorted(st.session_state.history, key=lambda x: int(x.get("Kỳ", 0)), reverse=True)
             st.session_state.last_n = int(st.session_state.history[0]["Số"])
         st.rerun()
-    st.download_button("💾 Backup", json.dumps({"history": st.session_state.history, "last_n": st.session_state.last_n}), "8bit_v3.4.json")
+    st.download_button("💾 Backup", json.dumps({"history": st.session_state.history, "last_n": st.session_state.last_n}), "8bit_v3.5.json")
