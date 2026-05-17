@@ -4,29 +4,23 @@ import numpy as np
 import json
 from datetime import datetime
 
-# --- 1. THIẾT LẬP GIAO DIỆN & CSS CHUYÊN NGHIỆP ---
-st.set_page_config(page_title="8-BIT MASTER V3.0", layout="centered")
+# --- 1. THIẾT LẬP GIAO DIỆN ---
+st.set_page_config(page_title="8-BIT MASTER V3.1", layout="centered")
 
 st.markdown("""
     <style>
-    html, body, [class*="st-"] { font-size: 0.72rem !important; color: #1e293b; }
+    html, body, [class*="st-"] { font-size: 0.72rem !important; }
     .dan-box { 
         background-color: #ffffff; border: 1.5px solid #1e3a8a; border-radius: 8px; 
-        padding: 8px; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; 
+        padding: 8px; margin-bottom: 10px; font-family: monospace; 
         font-weight: 700; color: #1e3a8a; text-align: center; font-size: 0.88rem;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }
-    .stDataFrame { border: 1px solid #cbd5e1; border-radius: 8px; }
-    .stButton button { 
-        width: 100%; border-radius: 8px; height: 38px; font-weight: 700; 
-        background-color: #1e3a8a !important; color: white !important;
-        border: none !important;
-    }
-    .stButton button:hover { background-color: #3b82f6 !important; }
+    .stDataFrame td, .stDataFrame th { padding: 1px 2px !important; font-size: 0.65rem !important; text-align: center !important; }
+    .stButton button { width: 100%; border-radius: 8px; height: 38px; font-weight: 700; background-color: #1e3a8a !important; color: white !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. HÀM MÃ HÓA & LOGIC TOÁN HỌC ---
+# --- 2. LOGIC TOÁN HỌC 8 BIẾN ---
 SO_THUONG = [2,3,4,6,8,13,15,17,18,19,20,24,25,26,28,30,31,35,37,39,40,42,46,47,48,51,52,53,57,59,60,62,64,68,69,71,73,74,75,79,80,81,82,84,86,91,93,95,96,97]
 
 def get_8bit(n):
@@ -52,63 +46,62 @@ def calculate_rank(target, last_n):
         scores.append({"S": f"{i:02d}", "W": w})
     df = pd.DataFrame(scores).sort_values(["W", "S"])
     df['R'] = range(1, 101)
-    res = df[df['S'] == f"{int(target):02d}"]['R'].values
-    return int(res[0]) if len(res) > 0 else 100
+    match = df[df['S'] == f"{int(target):02d}"]['R'].values
+    return int(match[0]) if len(match) > 0 else 100
 
-# --- 3. HỆ THỐNG LƯU TRỮ TRUNG TÂM (CORE STORAGE) ---
-if 'db_history' not in st.session_state:
-    st.session_state.db_history = []
-if 'db_last_n' not in st.session_state:
-    st.session_state.db_last_n = -1
+# --- 3. CƠ CHẾ LƯU TRỮ KHÓA KÉP (DOUBLE-LOCK) ---
+# KHÓA 1: Khởi tạo danh sách nếu chưa tồn tại
+if 'history' not in st.session_state:
+    st.session_state.history = []
+if 'last_n' not in st.session_state:
+    st.session_state.last_n = -1
 
-# Tự động đồng bộ số kỳ nhảy
-max_ky = 0
-if st.session_state.db_history:
-    max_ky = max([int(h.get("Kỳ", 0)) for h in st.session_state.db_history])
-    if st.session_state.db_last_n == -1:
-        # Sắp xếp để lấy số mới nhất
-        temp_hist = sorted(st.session_state.db_history, key=lambda x: int(x.get("Kỳ", 0)), reverse=True)
-        st.session_state.db_last_n = int(temp_hist[0].get("Số", -1))
+# KHÓA 2: Đồng bộ hóa mốc tính (last_n) mỗi lần script chạy lại
+if st.session_state.history:
+    # Luôn lấy số của kỳ lớn nhất trong lịch sử làm gốc tính nhịp
+    temp_sorted = sorted(st.session_state.history, key=lambda x: int(x.get("Kỳ", 0)), reverse=True)
+    st.session_state.last_n = int(temp_sorted[0].get("Số", -1))
+    st.session_state.max_ky = int(temp_sorted[0].get("Kỳ", 0))
+else:
+    st.session_state.max_ky = 0
 
 # --- 4. GIAO DIỆN NHẬP LIỆU ---
-st.title("🛡️ 8-BIT ARCHITECT V3.0")
+st.title("🛡️ 8-BIT MASTER V3.1")
 
-with st.expander("📝 CẬP NHẬT KẾT QUẢ MỚI", expanded=True):
+with st.expander("📝 CẬP NHẬT KẾT QUẢ", expanded=True):
     c1, c2, c3 = st.columns([1.5, 1, 1.2])
-    with c1: num_in = st.text_input("GĐB (2 số cuối):", key="n_in")
-    with c2: ky_in = st.number_input("Kỳ:", value=max_ky + 1, step=1)
+    with c1: num_in = st.text_input("GĐB (2 số):", key="num_in")
+    with c2: ky_in = st.number_input("Kỳ:", value=st.session_state.max_ky + 1, step=1)
     with c3: day_in = st.text_input("Ngày:", datetime.now().strftime("%d/%m"))
     
-    if st.button("🚀 LƯU VÀO HỆ THỐNG"):
+    if st.button("🚀 LƯU NHẬT KÝ & NHẢY KỲ"):
         if len(num_in) >= 2:
             val = int(num_in[-2:])
-            r_val = calculate_rank(val, st.session_state.db_last_n)
+            r_val = calculate_rank(val, st.session_state.last_n)
             
-            # Ghi đè hoặc thêm mới dựa trên Kỳ
-            new_item = {"Ngày": day_in, "Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_val)}
+            # Cập nhật hoặc Thêm mới dựa trên số Kỳ
+            new_entry = {"Ngày": day_in, "Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_val)}
             
-            # Kiểm tra xem kỳ này đã tồn tại chưa để tránh trùng
-            exists = False
-            for i, h in enumerate(st.session_state.db_history):
-                if int(h.get("Kỳ")) == int(ky_in):
-                    st.session_state.db_history[i] = new_item
-                    exists = True
-                    break
-            if not exists:
-                st.session_state.db_history.append(new_item)
+            # Kiểm tra trùng kỳ để không tạo dòng rác
+            idx = next((i for i, item in enumerate(st.session_state.history) if int(item["Kỳ"]) == int(ky_in)), None)
+            if idx is not None:
+                st.session_state.history[idx] = new_entry
+            else:
+                st.session_state.history.append(new_entry)
             
-            st.session_state.db_last_n = val
-            st.success(f"Đã cập nhật Kỳ {ky_in}")
+            # Ép lưu mốc mới
+            st.session_state.last_n = val
+            st.success(f"Đã lưu kỳ {ky_in}!")
             st.rerun()
 
 st.divider()
 
 # --- 5. TABS HIỂN THỊ ---
-if st.session_state.db_history:
-    tab1, tab2 = st.tabs(["🎯 LẤY DÀN TINH ANH", "📊 NHẬT KÝ 11 CỘT"])
+if st.session_state.history:
+    tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH", "📊 NHẬT KÝ 11 CỘT"])
     
     with tab1:
-        st.write(f"🔢 Nhịp đang xét từ số: **{st.session_state.db_last_n:02d}**")
+        st.write(f"🔢 Nhịp xét từ số: **{st.session_state.last_n:02d}**")
         
         def gen_dan(size, last):
             lb = get_8bit(last)
@@ -121,19 +114,19 @@ if st.session_state.db_history:
                 res.append({"S": f"{i:02d}", "W": w})
             return pd.DataFrame(res).sort_values(["W", "S"]).head(size)["S"].tolist()
 
-        c_a, c_b = st.columns(2)
-        with c_a:
-            n1 = st.number_input("Số lượng Dàn A:", 1, 100, 50, key="n1")
-            st.markdown(f"<div class='dan-box'>{' '.join(gen_dan(n1, st.session_state.db_last_n))}</div>", unsafe_allow_html=True)
-        with c_b:
-            n2 = st.number_input("Số lượng Dàn B:", 1, 100, 36, key="n2")
-            st.markdown(f"<div class='dan-box'>{' '.join(gen_dan(n2, st.session_state.db_last_n))}</div>", unsafe_allow_html=True)
+        ca, cb = st.columns(2)
+        with ca:
+            n1 = st.number_input("Dàn A (Quân):", 1, 100, 50, key="n1")
+            st.markdown(f"<div class='dan-box'>{' '.join(gen_dan(n1, st.session_state.last_n))}</div>", unsafe_allow_html=True)
+        with cb:
+            n2 = st.number_input("Dàn B (Quân):", 1, 100, 36, key="n2")
+            st.markdown(f"<div class='dan-box'>{' '.join(gen_dan(n2, st.session_state.last_n))}</div>", unsafe_allow_html=True)
 
     with tab2:
-        # Xây dựng bảng 11 cột y hệt ảnh mẫu
-        history_sorted = sorted(st.session_state.db_history, key=lambda x: int(x.get("Kỳ", 0)), reverse=True)
+        # Hiển thị 11 cột y hệt ảnh mẫu của mày
+        hist_sorted = sorted(st.session_state.history, key=lambda x: int(x.get("Kỳ", 0)), reverse=True)
         disp = []
-        for h in history_sorted[:50]:
+        for h in hist_sorted[:50]:
             b = get_8bit(h["Số"])
             disp.append({
                 "Kỳ": int(h.get("Kỳ")), "Số": h.get("Số"), "R": int(h.get("Rank", 0)),
@@ -143,23 +136,21 @@ if st.session_state.db_history:
             })
         st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
 
-# --- 6. SIDEBAR ---
+# --- 6. SIDEBAR QUẢN LÝ ---
 with st.sidebar:
-    st.header("⚙️ HỆ THỐNG")
-    if st.button("🔴 RESET DỮ LIỆU"):
-        st.session_state.db_history = []
-        st.session_state.db_last_n = -1
+    st.header("⚙️ DỮ LIỆU")
+    if st.button("🔴 XOÁ SẠCH BỘ NHỚ"):
+        st.session_state.history = []
+        st.session_state.last_n = -1
         st.rerun()
     
-    up = st.file_uploader("Nạp file dữ liệu:", type="json")
+    up = st.file_uploader("Nạp file JSON:", type="json")
     if up:
         data = json.load(up)
-        # Ép dữ liệu vào session
-        st.session_state.db_history = data.get("history", [])
-        st.session_state.db_last_n = int(data.get("last_n", -1))
-        st.success("Đã nạp file!")
+        # Nạp và đồng bộ mốc ngay lập tức
+        st.session_state.history = data.get("history", [])
         st.rerun()
     
     st.divider()
-    bk = {"history": st.session_state.db_history, "last_n": st.session_state.db_last_n}
-    st.download_button("💾 backup_v3.json", json.dumps(bk), "8bit_master_v3.json", use_container_width=True)
+    backup = {"history": st.session_state.history, "last_n": st.session_state.last_n}
+    st.download_button("💾 XUẤT BACKUP", json.dumps(backup), "8bit_master.json", use_container_width=True)
