@@ -3,27 +3,26 @@ import pandas as pd
 import numpy as np
 import json
 from datetime import datetime
-from itertools import combinations
 
-# --- 1. GIAO DIỆN (NỀN TRẮNG - NÚT XANH NAVY) ---
-st.set_page_config(page_title="8-BIT QUANTUM V6.5", layout="wide")
+# --- 1. GIAO DIỆN SIÊU NÉN (COMPACT UI) ---
+st.set_page_config(page_title="8-BIT QUANTUM V6.6", layout="wide")
 st.markdown("""
     <style>
-    html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.75rem !important; }
+    html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
     .stButton button { 
-        width: 100%; border-radius: 6px; height: 42px; font-weight: 700; 
+        width: 100%; border-radius: 4px; height: 35px; font-weight: 700; 
         background-color: #000080 !important; color: #ffffff !important;
     }
     .dan-box { 
-        background-color: #f1f5f9; border: 2px solid #000080; border-radius: 8px; 
-        padding: 10px; font-family: 'Courier New', monospace; font-weight: 700; 
-        color: #000080; text-align: center; font-size: 1rem;
+        background-color: #f1f5f9; border: 1px solid #000080; border-radius: 5px; 
+        padding: 8px; font-family: monospace; font-weight: 700; color: #000080; text-align: center; font-size: 0.95rem;
     }
-    .weight-card {
-        background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px;
-        padding: 8px; margin-bottom: 4px; font-size: 0.7rem;
+    .bit-card {
+        background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 5px;
+        padding: 5px; margin-bottom: 2px; line-height: 1.2;
     }
-    .bit-title { color: #000080; font-weight: 800; border-bottom: 1px solid #000080; margin-bottom: 5px; }
+    .bit-header { background: #000080; color: white; text-align: center; font-weight: bold; border-radius: 3px; margin-bottom: 3px; }
+    .stNumberInput input, .stTextInput input { height: 35px !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -37,27 +36,26 @@ def get_8bit(n):
             1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if (d+u) % 10 >= 5 else 0,
             1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
 
-# --- 3. PHÂN TÍCH CHI TIẾT TRỌNG SỐ ---
-def analyze_with_weights(history, last_n):
+def analyze_full_quantum(history, last_n):
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
     curr_bits = np.array(get_8bit(last_n))
-    
-    final_results = []
+    results = []
     
     for i in range(8):
-        # Tầng 1: Nhịp Chuỗi 3/4 kỳ (40%)
-        seg4 = all_bits[-4:, i]; s_str = "".join(map(str, seg4.astype(int)))
-        if s_str == "1111" or (s_str.count('1')==3 and s_str[-1]==1): p_seq = 0.82
-        elif s_str == "0000" or (s_str.count('1')==1 and s_str[-1]==0): p_seq = 0.18
-        elif s_str == "0101": p_seq = 0.85
-        elif s_str == "1010": p_seq = 0.15
+        # 3 Kỳ & 4 Kỳ
+        s3 = "".join(map(str, all_bits[-3:, i].astype(int)))
+        s4 = "".join(map(str, all_bits[-4:, i].astype(int)))
+        
+        # Trọng số 4 kỳ (40%)
+        if s4 == "1111" or (s4.count('1')==3 and s4[-1]==1): p_seq = 0.82
+        elif s4 == "0000" or (s4.count('1')==1 and s4[-1]==0): p_seq = 0.18
+        elif s4 == "0101": p_seq = 0.85
+        elif s4 == "1010": p_seq = 0.15
         else: p_seq = 0.5
         
-        # Tầng 2: Momentum 10 kỳ (25%)
-        p_mom = np.mean(all_bits[-10:, i])
+        p_mom = np.mean(all_bits[-10:, i]) # 10 kỳ (25%)
         
-        # Tầng 3: Lịch sử 22 kỳ (20%)
-        p_pair = 0.5
+        p_pair = 0.5 # 22 kỳ (20%)
         if len(history) >= 22:
             seg22 = all_bits[-23:]; pm = []
             for j in range(8):
@@ -66,53 +64,30 @@ def analyze_with_weights(history, last_n):
                 if m: pm.append(np.mean(m))
             if pm: p_pair = np.mean(pm)
             
-        # Tầng 4: DNA (15%) - Tính mặc định là trung tính cho bit, nhưng ảnh hưởng Rank
-        p_dna = 0.5
-        
-        # Công thức tính xác suất cuối cùng
-        f_prob = (p_seq * 0.40) + (p_mom * 0.25) + (p_pair * 0.20) + (p_dna * 0.15)
-        
-        final_results.append({
-            "label": BIT_LABELS[i],
-            "seq_str": s_str,
-            "p_seq": int(p_seq*100),
-            "p_mom": int(p_mom*100),
-            "p_pair": int(p_pair*100),
-            "f_prob": f_prob
-        })
-        
-    return final_results
+        f_prob = (p_seq * 0.40) + (p_mom * 0.25) + (p_pair * 0.20) + (0.5 * 0.15)
+        results.append({"l": BIT_LABELS[i], "s3": s3, "s4": s4, "p_seq": p_seq, "p_mom": p_mom, "p_pair": p_pair, "f": f_prob})
+    return results
 
-# --- 4. APP MAIN ---
+# --- 3. SESSION STATE ---
 if 'history' not in st.session_state: st.session_state.history = []
 if 'last_n' not in st.session_state: st.session_state.last_n = -1
 
-st.title("🧬 QUANTUM TRANSPARENT V6.5")
-
-with st.sidebar:
-    st.header("📂 DỮ LIỆU")
-    up = st.file_uploader("Nạp Master JSON:", type="json")
-    if up:
-        data = json.load(up); raw = data.get("history", [])
-        st.session_state.history = sorted([{"Ngày": h.get("Ngày", "00/00"), "Kỳ": int(h.get("Kỳ", 0)), "Số": f"{int(h.get('Số', 0)):02d}", "Rank": h.get("Rank", 0)} for h in raw], key=lambda x: x["Kỳ"])
-        if st.session_state.history: st.session_state.last_n = int(st.session_state.history[-1]["Số"])
-    num_quan = st.number_input("Số quân lấy dàn:", value=50)
-    if st.button("🔴 RESET"): st.session_state.history = []; st.rerun()
-
-# NHẬP LIỆU
+# --- 4. VÙNG CHỈ HUY (DÒNG ĐẦU TIÊN) ---
+st.title("🛡️ QUANTUM MASTER V6.6")
 with st.container():
-    c1, c2, c3 = st.columns(3)
-    n_in = c1.text_input("Số nổ:")
-    ky_in = c2.number_input("Kỳ:", value=st.session_state.history[-1]["Kỳ"] + 1 if st.session_state.history else 1)
-    if st.button("🚀 PHÂN TÍCH TRỌNG SỐ"):
+    c1, c2, c3, c4 = st.columns([1,1,1,1])
+    n_in = c1.text_input("Số nổ:", placeholder="VD: 62")
+    num_quan = c2.number_input("Số quân lấy dàn:", value=50, step=1)
+    ky_in = c3.number_input("Kỳ vừa nổ:", value=st.session_state.history[-1]["Kỳ"] + 1 if st.session_state.history else 1)
+    if c4.button("🚀 PHÂN TÍCH"):
         if n_in:
             val = int(n_in[-2:])
             if st.session_state.history:
-                results = analyze_with_weights(st.session_state.history, st.session_state.last_n)
-                probs = [r["f_prob"] for r in results]
+                res = analyze_full_quantum(st.session_state.history, st.session_state.last_n)
+                p = [r["f"] for r in res]
                 scr = []
                 for i in range(100):
-                    b = get_8bit(i); m = sum(b[j]*probs[j] + (1-b[j])*(1-probs[j]) for j in range(8))
+                    b = get_8bit(i); m = sum(b[j]*p[j] + (1-b[j])*(1-p[j]) for j in range(8))
                     scr.append({"S": f"{i:02d}", "M": m})
                 df_t = pd.DataFrame(scr).sort_values("M", ascending=False); df_t['R'] = range(1, 101)
                 r_v = df_t[df_t['S'] == f"{val:02d}"]['R'].values[0]
@@ -120,10 +95,10 @@ with st.container():
             st.session_state.history.append({"Ngày": datetime.now().strftime("%d/%m"), "Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_v)})
             st.session_state.last_n = val; st.rerun()
 
-# HIỂN THỊ
+# --- 5. HIỂN THỊ ---
 if st.session_state.history:
-    results = analyze_with_weights(st.session_state.history, st.session_state.last_n)
-    probs = [r["f_prob"] for r in results]
+    results = analyze_full_quantum(st.session_state.history, st.session_state.last_n)
+    probs = [r["f"] for r in results]
     
     res_rank = []
     for i in range(100):
@@ -131,30 +106,49 @@ if st.session_state.history:
         res_rank.append({"S": f"{i:02d}", "M": m})
     df_rank = pd.DataFrame(res_rank).sort_values("M", ascending=False)
 
-    tab1, tab2 = st.tabs(["🎯 BẢNG SOI TRỌNG SỐ", "📊 NHẬT KÝ"])
+    tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH & TRỌNG SỐ", "📊 NHẬT KÝ SIÊU NÉN"])
     
     with tab1:
-        st.write("### 🔍 Giải mã các lớp xác suất (%)")
-        # Hiển thị 8 cột, mỗi cột là 1 Bit với các thông số bên trong
+        # Hiển thị 8 Bit Compact
         cols = st.columns(8)
         for i, r in enumerate(results):
             with cols[i]:
                 st.markdown(f"""
-                <div class='bit-title'>{r['label']}</div>
-                <div class='weight-card'><b>Nhịp 4k:</b> {r['seq_str']} -> {r['p_seq']}%</div>
-                <div class='weight-card'><b>10 Kỳ:</b> {r['p_mom']}%</div>
-                <div class='weight-card'><b>22 Kỳ:</b> {r['p_pair']}%</div>
-                <div class='weight-card' style='background:#e0f2fe'><b>Hội tụ: {int(r['f_prob']*100)}%</b></div>
+                <div class='bit-header'>{r['l']}</div>
+                <div class='bit-card'><b>3K:</b> {r['s3']}</div>
+                <div class='bit-card'><b>4K:</b> {r['s4']}</div>
+                <div class='bit-card'><b>10K:</b> {int(r['p_mom']*100)}%</div>
+                <div class='bit-card'><b>22K:</b> {int(r['p_pair']*100)}%</div>
+                <div class='bit-card' style='background:#e0f2fe'><b>Hội tụ: {int(r['f']*100)}%</b></div>
                 """, unsafe_allow_html=True)
         
         st.divider()
-        st.markdown(f"**🔥 DÀN TINH ANH {num_quan} SỐ QUÂN**")
+        st.markdown(f"**🔥 DÀN TINH ANH {num_quan} SỐ QUÂN (DỰA TRÊN RANK HỘI TỤ)**")
         st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(int(num_quan))['S'].tolist())}</div>", unsafe_allow_html=True)
 
     with tab2:
-        # Nhật ký siêu nén
-        disp = []
+        # Nhật ký đảo ngược mới nhất lên đầu
+        display_data = []
         for h in reversed(st.session_state.history):
             b = get_8bit(h["Số"])
-            disp.append({"Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"], "Mã DNA": "".join(map(str, b))})
-        st.dataframe(pd.DataFrame(disp), use_container_width=True)
+            display_data.append({
+                "Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"],
+                "Đ": "L" if b[0] else "C", "Đu": "L" if b[1] else "C", "T": "L" if b[2] else "C",
+                "Đ.T": "T" if b[3] else "B", "Đu.T": "T" if b[4] else "B", "T.T": "T" if b[5] else "B",
+                "Hệ": "Th" if b[6] else "Kp", "Hi": "T" if b[7] else "B"
+            })
+        st.dataframe(pd.DataFrame(display_data), use_container_width=True, hide_index=True)
+
+with st.sidebar:
+    st.header("📂 HỆ THỐNG")
+    up = st.file_uploader("Nạp Master JSON:", type="json")
+    if up:
+        data = json.load(up); raw = data.get("history", [])
+        st.session_state.history = sorted([{"Ngày": h.get("Ngày", "00/00"), "Kỳ": int(h.get("Kỳ", 0)), "Số": f"{int(h.get('Số', 0)):02d}", "Rank": h.get("Rank", 0)} for h in raw], key=lambda x: x["Kỳ"])
+        if st.session_state.history: st.session_state.last_n = int(st.session_state.history[-1]["Số"])
+        st.rerun()
+    st.divider()
+    if st.button("🔴 RESET"): st.session_state.history = []; st.rerun()
+    st.divider()
+    if st.session_state.history:
+        st.download_button("💾 XUẤT MASTER BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v6.6_{datetime.now().strftime('%d%m')}.json")
