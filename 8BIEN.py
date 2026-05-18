@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import json
 
-# --- 1. GIAO DIỆN NGUYÊN BẢN V8.5 (KHÔNG THÊM THẮT) ---
-st.set_page_config(page_title="8 BIT V8.5", layout="wide")
+# --- 1. GIAO DIỆN NGUYÊN BẢN V8.5 ---
+st.set_page_config(page_title="CANH BAO 8 BIT V8.5", layout="wide")
 st.markdown("""
     <style>
     html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
@@ -14,13 +14,14 @@ st.markdown("""
     }
     .dan-box { 
         background-color: #f1f5f9; border: 1px solid #000080; border-radius: 5px; 
-        padding: 8px; font-family: monospace; font-weight: 700; color: #000080; text-align: center; font-size: 1rem;
+        padding: 8px; font-family: monospace; font-weight: 700; color: #000080; text-align: center; font-size: 1.1rem;
     }
     .bit-header { background: #000080; color: white; text-align: center; font-weight: bold; border-radius: 3px; margin-bottom: 2px; }
     .bit-card { 
         background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 4px; 
-        padding: 4px; margin-bottom: 2px; line-height: 1.1; 
+        padding: 8px; margin-bottom: 2px; text-align: center;
     }
+    .stat-val { font-size: 1.1rem; font-weight: 800; color: #000080; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -40,14 +41,13 @@ def get_8bit(n):
 def get_8bit_str(n): return "".join(map(str, get_8bit(n)))
 
 def analyze_v85(history, last_n):
-    default_res = [{"l": b, "f": 0.5, "p4": 0.5, "p3": 0.5, "pb": 0.5, "c4": 0, "c3": 0, "cb": 0} for b in BIT_LABELS]
+    default_res = [{"l": b, "f": 0.5} for b in BIT_LABELS]
     if len(history) < 5: return default_res, []
     
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
     curr_bits = np.array(get_8bit(last_n))
     bit_history_str = [get_8bit_str(h["Số"]) for h in history]
     
-    # Phân cụm 74 dạng
     unique_clusters = {}
     for i in range(100):
         s_bit = get_8bit_str(i)
@@ -75,7 +75,7 @@ def analyze_v85(history, last_n):
             pm.extend(matches[-66:])
         pb = np.mean(pm) if pm else 0.5
         f_prob = (p4 * 0.4) + (p3 * 0.2) + (pb * 0.2) + (np.mean(all_bits[-10:, i]) * 0.2)
-        results.append({"l": BIT_LABELS[i], "f": f_prob, "p4": p4, "p3": p3, "pb": pb, "c4": len(m4), "c3": len(m3), "cb": len(pm)})
+        results.append({"l": BIT_LABELS[i], "f": f_prob})
     return results, cluster_gan_data
 
 # --- 3. SESSION ---
@@ -92,17 +92,18 @@ with st.sidebar:
         st.session_state.last_n = int(st.session_state.history[-1]["Số"])
     if st.button("🔴 RESET"): st.session_state.history = []; st.rerun()
 
-# --- 4. UI ---
-st.title("🚨 CANH BAO 8 BIT V8.5 (74-BIT Core)")
+# --- 4. TRANG CHÍNH ---
+st.title("🚨 CANH BAO 8 BIT - V8.5")
 
+# KHU VỰC NHẬP LIỆU
 c1, c2, c3 = st.columns([1,1,1.5])
-n_in = c1.text_input("Số nổ (Nhập tay):")
+n_in = c1.text_input("Số nổ:")
 ky_curr = int(st.session_state.history[-1]["Kỳ"])+1 if st.session_state.history else 1
 ky_in = c2.number_input("Kỳ:", value=ky_curr)
 
 results, cluster_gan = analyze_v85(st.session_state.history, st.session_state.last_n)
 
-if c3.button("🚀 PHÂN TÍCH / LƯU"):
+if c3.button("🚀 PHÂN TÍCH"):
     if n_in:
         val = int(n_in[-2:]); r_v = 0
         if len(st.session_state.history) >= 5:
@@ -113,36 +114,32 @@ if c3.button("🚀 PHÂN TÍCH / LƯU"):
             r_v = df_t[df_t['S']==f"{val:02d}"]['R'].values[0]
         st.session_state.history.append({"Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": r_v}); st.session_state.last_n = val; st.rerun()
 
-tab1, tab2, tab3 = st.tabs(["🎯 PHÂN TÍCH & DÀN", "🕵️ 74 DẠNG CỤM", "📊 NHẬT KÝ V8.5"])
+# KHU VỰC HIỂN THỊ 8 BIT
+cols = st.columns(8)
+for i, r in enumerate(results):
+    with cols[i]:
+        st.markdown(f"<div class='bit-header'>{BIT_LABELS[i]}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='bit-card'><div class='stat-val'>{int(r['f']*100)}%</div></div>", unsafe_allow_html=True)
 
-with tab1:
-    cols = st.columns(8)
-    for i, r in enumerate(results):
-        with cols[i]:
-            st.markdown(f"<div class='bit-header'>{BIT_LABELS[i]}</div><div class='bit-card'>4K:{int(r['p4']*100)}%<br>3K:{int(r['p3']*100)}%<br>Hậu:{int(r['pb']*100)}%<br><b>Hội tụ:{int(r['f']*100)}%</b></div>", unsafe_allow_html=True)
-    st.divider()
-    ca, cb = st.columns([3, 1])
-    st.session_state.num_q = cb.number_input("Số quân lấy:", value=st.session_state.num_q, min_value=1)
-    
-    probs = [r["f"] for r in results]
-    gan_dict = {c['bit']: c['gan'] for c in cluster_gan} if cluster_gan else {get_8bit_str(i):0 for i in range(100)}
-    final_list = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*probs[j] + (1-get_8bit(i)[j])*(1-probs[j]) for j in range(8)) + (0.05 * (gan_dict.get(get_8bit_str(i),0)/40))} for i in range(100)]
-    df_rank = pd.DataFrame(final_list).sort_values("M", ascending=False)
-    
-    ca.markdown(f"### 🔥 DÀN TINH ANH {st.session_state.num_q} SỐ")
-    st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(st.session_state.num_q)['S'].tolist())}</div>", unsafe_allow_html=True)
+# KHU VỰC DÀN SỐ
+st.divider()
+ca, cb = st.columns([3, 1])
+st.session_state.num_q = cb.number_input("Số quân:", value=st.session_state.num_q, min_value=1)
 
-with tab2:
-    st.subheader("🕵️ DANH SÁCH 74 CỤM BIT")
-    if cluster_gan:
-        for c in sorted(cluster_gan, key=lambda x: x['gan'], reverse=True):
-            with st.expander(f"Mã: {c['bit']} — GAN: {c['gan']} kỳ ({len(c['members'])} số)"):
-                st.write(f"**Thành viên:** {', '.join(c['members'])}")
+probs = [r["f"] for r in results]
+gan_dict = {c['bit']: c['gan'] for c in cluster_gan} if cluster_gan else {get_8bit_str(i):0 for i in range(100)}
+final_list = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*probs[j] + (1-get_8bit(i)[j])*(1-probs[j]) for j in range(8)) + (0.05 * (gan_dict.get(get_8bit_str(i),0)/40))} for i in range(100)]
+df_rank = pd.DataFrame(final_list).sort_values("M", ascending=False)
 
-with tab3:
-    if st.session_state.history:
-        disp = []
-        for h in sorted(st.session_state.history, key=lambda x: x['Kỳ'], reverse=True):
-            b = get_8bit(h["Số"])
-            disp.append({"Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"], "Đ.CL": "Lẻ" if b[0] else "Chẵn", "Đu.CL": "Lẻ" if b[1] else "Chẵn", "T.CL": "Lẻ" if b[2] else "Chẵn", "Đ.TB": "To" if b[3] else "Bé", "Đu.TB": "To" if b[4] else "Bé", "T.TB": "To" if b[5] else "Bé", "Hệ": "Thuận" if b[6] else "K.Phải", "Hiệu": "To" if b[7] else "Bé"})
-        st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
+ca.markdown(f"### 🔥 DÀN {st.session_state.num_q} QUÂN")
+st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(st.session_state.num_q)['S'].tolist())}</div>", unsafe_allow_html=True)
+
+# KHU VỰC NHẬT KÝ (LỘ THIÊN - KHÔNG CẦN TAB)
+st.divider()
+st.subheader("📊 NHẬT KÝ LỊCH SỬ")
+if st.session_state.history:
+    disp = []
+    for h in sorted(st.session_state.history, key=lambda x: x['Kỳ'], reverse=True):
+        b = get_8bit(h["Số"])
+        disp.append({"Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"], "Đ.CL": "Lẻ" if b[0] else "Chẵn", "Đu.CL": "Lẻ" if b[1] else "Chẵn", "T.CL": "Lẻ" if b[2] else "Chẵn", "Đ.TB": "To" if b[3] else "Bé", "Đu.TB": "To" if b[4] else "Bé", "T.TB": "To" if b[5] else "Bé", "Hệ": "Thuận" if b[6] else "K.Phải", "Hiệu": "To" if b[7] else "Bé"})
+    st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
