@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 
-# --- 1. GIAO DIỆN CHUẨN V8.5 ---
+# --- 1. GIAO DIỆN CHUẨN V8.5 (GIỮ NGUYÊN 100%) ---
 st.set_page_config(page_title="8-BIT QUANTUM V8.5", layout="wide")
 st.markdown("""
     <style>
@@ -46,6 +46,13 @@ def get_8bit(n):
 
 def get_8bit_str(n): return "".join(map(str, get_8bit(n)))
 
+# Hàm hỗ trợ ép kiểu JSON để không bị lỗi Numpy
+def convert_to_serializable(obj):
+    if isinstance(obj, np.integer): return int(obj)
+    if isinstance(obj, np.floating): return float(obj)
+    if isinstance(obj, np.ndarray): return obj.tolist()
+    return obj
+
 def analyze_v85(history, last_n):
     if len(history) < 10: return None
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
@@ -83,9 +90,9 @@ def analyze_v85(history, last_n):
         f_prob = (p4 * 0.40) + (p_mom * 0.20) + (p3 * 0.20) + (p_base * 0.20)
         
         results.append({
-            "l": BIT_LABELS[i], "c3": len(m3[-22:]), "p3": p3, 
-            "c4": len(m4[-11:]), "p4": p4, "p_mom": p_mom, 
-            "c_base": len(pm_pair), "p_base": p_base, "f": f_prob
+            "l": BIT_LABELS[i], "c3": len(m3[-22:]), "p3": float(p3), 
+            "c4": len(m4[-11:]), "p4": float(p4), "p_mom": float(p_mom), 
+            "c_base": len(pm_pair), "p_base": float(p_base), "f": float(f_prob)
         })
     return results, gan_dict, unique_clusters
 
@@ -95,7 +102,7 @@ if 'last_n' not in st.session_state: st.session_state.last_n = -1
 if 'num_quan' not in st.session_state: st.session_state.num_quan = 59
 if 'next_ky' not in st.session_state: st.session_state.next_ky = 1
 
-# --- 4. SIDEBAR (CÓ LƯU TRỮ) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.header("📂 QUẢN LÝ DỮ LIỆU")
     up = st.file_uploader("Nạp Master Data:", type="json")
@@ -107,9 +114,13 @@ with st.sidebar:
     
     st.divider()
     if st.session_state.history:
-        # CHỨC NĂNG LƯU TRỮ
-        js = json.dumps({"history": st.session_state.history}, indent=2)
-        st.download_button("💾 TẢI XUỐNG MASTER DATA", data=js, file_name="master_data_updated.json", mime="application/json")
+        # Xử lý ép kiểu từng phần tử trong history để JSON không lỗi
+        clean_history = []
+        for h in st.session_state.history:
+            clean_history.append({k: convert_to_serializable(v) for k, v in h.items()})
+        
+        js = json.dumps({"history": clean_history}, indent=2)
+        st.download_button("💾 TẢI XUỐNG MASTER DATA", data=js, file_name="master_data_v85.json", mime="application/json")
     
     if st.button("🔴 RESET TOÀN BỘ"):
         st.session_state.history = []; st.session_state.last_n = -1; st.session_state.next_ky = 1; st.rerun()
@@ -135,7 +146,7 @@ if c3.button("🚀 PHÂN TÍCH"):
                     bonus = 0.05 * (g_dict.get(s_bit, 0) / 40)
                     scr.append({"S": f"{i:02d}", "M": m_score + bonus})
                 df_t = pd.DataFrame(scr).sort_values("M", ascending=False); df_t['R'] = range(1, 101)
-                r_v = df_t[df_t['S'] == f"{val:02d}"]['R'].values[0]
+                r_v = int(df_t[df_t['S'] == f"{val:02d}"]['R'].values[0])
         st.session_state.history.append({"Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": r_v})
         st.session_state.last_n = val; st.session_state.next_ky = int(ky_in) + 1; st.rerun()
 
