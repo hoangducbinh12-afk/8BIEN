@@ -3,26 +3,34 @@ import pandas as pd
 import numpy as np
 import json
 
-# --- 1. GIAO DIỆN CHUẨN V8.5 ---
-st.set_page_config(page_title="CANH BAO 8 BIT V8.5 - 74BIT", layout="wide")
+# --- 1. GIAO DIỆN NGUYÊN BẢN V8.5 (KHÔNG THÊM THẮT) ---
+st.set_page_config(page_title="8 BIT V8.5", layout="wide")
 st.markdown("""
     <style>
-    html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.75rem !important; }
-    .stButton button { width: 100%; border-radius: 4px; height: 38px; font-weight: 700; background-color: #000080 !important; color: #ffffff !important; }
-    .dan-box { background-color: #f1f5f9; border: 1px solid #000080; border-radius: 5px; padding: 10px; font-family: monospace; font-weight: 700; color: #000080; text-align: center; font-size: 1.1rem; }
+    html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
+    .stButton button { 
+        width: 100%; border-radius: 4px; height: 38px; font-weight: 700; 
+        background-color: #000080 !important; color: #ffffff !important;
+    }
+    .dan-box { 
+        background-color: #f1f5f9; border: 1px solid #000080; border-radius: 5px; 
+        padding: 8px; font-family: monospace; font-weight: 700; color: #000080; text-align: center; font-size: 1rem;
+    }
     .bit-header { background: #000080; color: white; text-align: center; font-weight: bold; border-radius: 3px; margin-bottom: 2px; }
-    .bit-card { background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 4px; padding: 5px; margin-bottom: 2px; line-height: 1.2; }
+    .bit-card { 
+        background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 4px; 
+        padding: 4px; margin-bottom: 2px; line-height: 1.1; 
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CORE LOGIC CHUẨN 74 DẠNG BIT ---
+# --- 2. CORE LOGIC 74 DẠNG BIT ---
 SO_THUONG = [2,3,4,6,8,13,15,17,18,19,20,24,25,26,28,30,31,35,37,39,40,42,46,47,48,51,52,53,57,59,60,62,64,68,69,71,73,74,75,79,80,81,82,84,86,91,93,95,96,97]
 BIT_LABELS = ["Đ.CL", "Đu.CL", "T.CL", "Đ.TB", "Đu.TB", "T.TB", "Hệ", "Hi.TB"]
 
 def get_8bit(n):
     val = int(n); d, u = val // 10, val % 10
-    t_dv = (d + u) % 10
-    h_dv = (d - u + 10) % 10
+    t_dv, h_dv = (d + u) % 10, (d - u + 10) % 10
     return [
         1 if d % 2 != 0 else 0, 1 if u % 2 != 0 else 0, 1 if (d+u) % 2 != 0 else 0,
         1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if t_dv >= 5 else 0,
@@ -31,7 +39,7 @@ def get_8bit(n):
 
 def get_8bit_str(n): return "".join(map(str, get_8bit(n)))
 
-def analyze_logic(history, last_n):
+def analyze_v85(history, last_n):
     default_res = [{"l": b, "f": 0.5, "p4": 0.5, "p3": 0.5, "pb": 0.5, "c4": 0, "c3": 0, "cb": 0} for b in BIT_LABELS]
     if len(history) < 5: return default_res, []
     
@@ -39,7 +47,7 @@ def analyze_logic(history, last_n):
     curr_bits = np.array(get_8bit(last_n))
     bit_history_str = [get_8bit_str(h["Số"]) for h in history]
     
-    # Tạo 74 cụm duy nhất
+    # Phân cụm 74 dạng
     unique_clusters = {}
     for i in range(100):
         s_bit = get_8bit_str(i)
@@ -76,23 +84,23 @@ if 'last_n' not in st.session_state: st.session_state.last_n = -1
 if 'num_q' not in st.session_state: st.session_state.num_q = 59
 
 with st.sidebar:
-    st.header("⚙️ V8.5 MOD 74BIT")
+    st.header("⚙️ V8.5 LEGACY")
     up = st.file_uploader("Nạp Master:", type="json")
     if up:
         data = json.load(up); raw = data.get("history", [])
         st.session_state.history = sorted([{"Kỳ": int(h["Kỳ"]), "Số": f"{int(h['Số']):02d}", "Rank": int(h.get("Rank", 0))} for h in raw], key=lambda x: x["Kỳ"])
         st.session_state.last_n = int(st.session_state.history[-1]["Số"])
-    if st.button("🔴 RESET"): st.session_state.history = []; st.session_state.last_n = -1; st.rerun()
+    if st.button("🔴 RESET"): st.session_state.history = []; st.rerun()
 
 # --- 4. UI ---
-st.title("🚨 CANH BAO 8 BIT - PHIÊN BẢN V8.5 (74 BIT)")
+st.title("🚨 CANH BAO 8 BIT V8.5 (74-BIT Core)")
 
 c1, c2, c3 = st.columns([1,1,1.5])
 n_in = c1.text_input("Số nổ (Nhập tay):")
 ky_curr = int(st.session_state.history[-1]["Kỳ"])+1 if st.session_state.history else 1
 ky_in = c2.number_input("Kỳ:", value=ky_curr)
 
-results, cluster_gan = analyze_logic(st.session_state.history, st.session_state.last_n)
+results, cluster_gan = analyze_v85(st.session_state.history, st.session_state.last_n)
 
 if c3.button("🚀 PHÂN TÍCH / LƯU"):
     if n_in:
@@ -105,7 +113,7 @@ if c3.button("🚀 PHÂN TÍCH / LƯU"):
             r_v = df_t[df_t['S']==f"{val:02d}"]['R'].values[0]
         st.session_state.history.append({"Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": r_v}); st.session_state.last_n = val; st.rerun()
 
-tab1, tab2, tab3 = st.tabs(["🎯 PHÂN TÍCH & DÀN", "🕵️ 74 DẠNG BIT", "📊 NHẬT KÝ V8.5"])
+tab1, tab2, tab3 = st.tabs(["🎯 PHÂN TÍCH & DÀN", "🕵️ 74 DẠNG CỤM", "📊 NHẬT KÝ V8.5"])
 
 with tab1:
     cols = st.columns(8)
@@ -115,18 +123,20 @@ with tab1:
     st.divider()
     ca, cb = st.columns([3, 1])
     st.session_state.num_q = cb.number_input("Số quân lấy:", value=st.session_state.num_q, min_value=1)
+    
     probs = [r["f"] for r in results]
     gan_dict = {c['bit']: c['gan'] for c in cluster_gan} if cluster_gan else {get_8bit_str(i):0 for i in range(100)}
     final_list = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*probs[j] + (1-get_8bit(i)[j])*(1-probs[j]) for j in range(8)) + (0.05 * (gan_dict.get(get_8bit_str(i),0)/40))} for i in range(100)]
     df_rank = pd.DataFrame(final_list).sort_values("M", ascending=False)
+    
     ca.markdown(f"### 🔥 DÀN TINH ANH {st.session_state.num_q} SỐ")
     st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(st.session_state.num_q)['S'].tolist())}</div>", unsafe_allow_html=True)
 
 with tab2:
-    st.subheader(f"🕵️ DANH SÁCH {len(cluster_gan)} DẠNG BIT (74 CỤM CHUẨN)")
+    st.subheader("🕵️ DANH SÁCH 74 CỤM BIT")
     if cluster_gan:
         for c in sorted(cluster_gan, key=lambda x: x['gan'], reverse=True):
-            with st.expander(f"Mã Bit: {c['bit']} — GAN: {c['gan']} kỳ ({len(c['members'])} số)"):
+            with st.expander(f"Mã: {c['bit']} — GAN: {c['gan']} kỳ ({len(c['members'])} số)"):
                 st.write(f"**Thành viên:** {', '.join(c['members'])}")
 
 with tab3:
