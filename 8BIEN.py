@@ -4,8 +4,8 @@ import numpy as np
 import json
 from datetime import datetime
 
-# --- 1. GIAO DIỆN V7.8 (GIỮ NGUYÊN GIAO DIỆN V7.7) ---
-st.set_page_config(page_title="8-BIT QUANTUM V7.8", layout="wide")
+# --- 1. GIAO DIỆN V7.9 (GIỮ NGUYÊN GIAO DIỆN MÀY ƯNG) ---
+st.set_page_config(page_title="8-BIT QUANTUM V7.9", layout="wide")
 st.markdown("""
     <style>
     html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
@@ -31,7 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CORE LOGIC (DNA & BITS) ---
+# --- 2. CORE LOGIC (V7.9: DYNAMIC LIMIT 44) ---
 SO_THUONG = [2,3,4,6,8,13,15,17,18,19,20,24,25,26,28,30,31,35,37,39,40,42,46,47,48,51,52,53,57,59,60,62,64,68,69,71,73,74,75,79,80,81,82,84,86,91,93,95,96,97]
 BIT_LABELS = ["Đ.CL", "Đu.CL", "T.CL", "Đ.TB", "Đu.TB", "T.TB", "Hệ", "Hi.TB"]
 
@@ -41,33 +41,47 @@ def get_8bit(n):
             1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if (d+u) % 10 >= 5 else 0,
             1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
 
-def analyze_v78(history, last_n):
-    if len(history) < 5: return None
+def analyze_v79(history, last_n):
+    if len(history) < 10: return None
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
     curr_bits = np.array(get_8bit(last_n))
     results = []
-    MIN_SAMPLE = 10 
+    
+    # GIỚI HẠN MẪU THEO TƯ VẤN CỦA MÀY
+    MAX_MATCHES = 44 
+    MIN_SAMPLE = 10
+
     for i in range(8):
+        # --- PHÂN TÍCH 3K (Lọc 44 lần trùng gần nhất) ---
         s3 = "".join(map(str, all_bits[-3:, i].astype(int)))
         m3 = [all_bits[k+3, i] for k in range(len(all_bits)-4) if "".join(map(str, all_bits[k:k+3, i].astype(int))) == s3]
-        p3 = np.mean(m3) if len(m3) >= MIN_SAMPLE else 0.5
+        m3_limited = m3[-MAX_MATCHES:] if len(m3) > MAX_MATCHES else m3
+        p3 = np.mean(m3_limited) if len(m3_limited) >= MIN_SAMPLE else 0.5
+
+        # --- PHÂN TÍCH 4K (Lọc 44 lần trùng gần nhất) ---
         s4 = "".join(map(str, all_bits[-4:, i].astype(int)))
         m4 = [all_bits[k+4, i] for k in range(len(all_bits)-5) if "".join(map(str, all_bits[k:k+4, i].astype(int))) == s4]
-        p4 = np.mean(m4) if len(m4) >= MIN_SAMPLE else 0.5
+        m4_limited = m4[-MAX_MATCHES:] if len(m4) > MAX_MATCHES else m4
+        p4 = np.mean(m4_limited) if len(m4_limited) >= MIN_SAMPLE else 0.5
+
+        # --- MOMENTUM 10K (Bắt nhịp nóng 10 ngày) ---
         p_mom = np.mean(all_bits[-10:, i])
+
+        # --- TƯƠNG QUAN 22K (Giới hạn 100 kỳ gần nhất) ---
+        hist_100 = all_bits[-100:]
         pm_pair = []
-        if len(history) >= 22:
-            seg22 = all_bits[-23:]
-            for j in range(8):
-                if i == j: continue
-                m = [seg22[k+1, i] for k in range(len(seg22)-1) if seg22[k, i] == curr_bits[i] and seg22[k, j] == curr_bits[j]]
-                pm_pair.extend(m)
+        for j in range(8):
+            if i == j: continue
+            m = [hist_100[k+1, i] for k in range(len(hist_100)-1) if hist_100[k, i] == curr_bits[i] and hist_100[k, j] == curr_bits[j]]
+            pm_pair.extend(m)
         p_pair = np.mean(pm_pair) if len(pm_pair) >= MIN_SAMPLE else 0.5
+
+        # HỘI TỤ ĐA TẦNG
         f_prob = (p4 * 0.40) + (p3 * 0.20) + (p_mom * 0.25) + (p_pair * 0.15)
-        results.append({"l": BIT_LABELS[i], "s3": s3, "c3": len(m3), "p3": p3, "s4": s4, "c4": len(m4), "p4": p4, "p_mom": p_mom, "c_pair": len(pm_pair), "p_pair": p_pair, "f": f_prob})
+        results.append({"l": BIT_LABELS[i], "s3": s3, "c3": len(m3_limited), "p3": p3, "s4": s4, "c4": len(m4_limited), "p4": p4, "p_mom": p_mom, "c_pair": len(pm_pair), "p_pair": p_pair, "f": f_prob})
     return results
 
-# --- 3. KHỞI TẠO BỘ NHỚ ---
+# --- 3. SESSION STATE ---
 if 'history' not in st.session_state: st.session_state.history = []
 if 'last_n' not in st.session_state: st.session_state.last_n = -1
 if 'num_quan' not in st.session_state: st.session_state.num_quan = 50
@@ -77,7 +91,7 @@ if 'last_up' not in st.session_state: st.session_state.last_up = None
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.header("📂 HỆ THỐNG")
-    up = st.file_uploader("Nạp Master JSON:", type="json")
+    up = st.file_uploader("Nạp Master JSON (2200 kỳ):", type="json")
     if up is not None and up != st.session_state.last_up:
         data = json.load(up); raw = data.get("history", [])
         st.session_state.history = sorted([{"Kỳ": int(h.get("Kỳ", 0)), "Số": f"{int(h.get('Số', 0)):02d}", "Rank": int(h.get("Rank", 0))} for h in raw], key=lambda x: x["Kỳ"])
@@ -88,40 +102,32 @@ with st.sidebar:
     if st.button("🔴 RESET"):
         st.session_state.history = []; st.session_state.last_n = -1; st.session_state.next_ky = 1; st.session_state.last_up = None; st.rerun()
     if st.session_state.history:
-        st.download_button("💾 XUẤT BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v7.8.json")
+        st.download_button("💾 BACKUP MASTER", json.dumps({"history": st.session_state.history}), f"8bit_v7.9_full.json")
 
-# --- 5. NHẬP LIỆU & TỰ ĐỘNG NHẢY KỲ (FIXED) ---
-st.title("🛡️ 8-BIT QUANTUM V7.8")
+# --- 5. NHẬP LIỆU (TỰ ĐỘNG NHẢY KỲ) ---
+st.title("🛡️ 8-BIT QUANTUM V7.9 (DYNAMIC 44)")
 with st.container():
     c1, c2, c3, c4 = st.columns([1.5, 1, 1.5, 2])
-    n_in = c1.text_input("Số vừa nổ:", placeholder="75", key="in_so_78")
-    
-    # SỬA LỖI NHẢY KỲ: Dùng session_state trực tiếp không thông qua widget key tĩnh
+    n_in = c1.text_input("Số vừa nổ:", placeholder="75", key="in_so_79")
     ky_in = c2.number_input("Kỳ:", value=st.session_state.next_ky, step=1)
     
     if c3.button("🚀 PHÂN TÍCH & LƯU"):
         if n_in:
             val = int(n_in[-2:]); r_v = 0
             if st.session_state.history:
-                res_temp = analyze_v78(st.session_state.history, st.session_state.last_n)
+                res_temp = analyze_v79(st.session_state.history, st.session_state.last_n)
                 if res_temp:
                     p_t = [r["f"] for r in res_temp]
                     scr = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*p_t[j] + (1-get_8bit(i)[j])*(1-p_t[j]) for j in range(8))} for i in range(100)]
                     df_t = pd.DataFrame(scr).sort_values("M", ascending=False); df_t['R'] = range(1, 101)
                     r_v = df_t[df_t['S'] == f"{val:02d}"]['R'].values[0]
-            
-            # Cập nhật lịch sử
             st.session_state.history.append({"Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_v)})
-            st.session_state.last_n = val
-            # Cập nhật Kỳ tiếp theo vào bộ nhớ
-            st.session_state.next_ky = int(ky_in) + 1
-            # Ép App chạy lại để nhận giá trị next_ky mới cho ô number_input
-            st.rerun()
+            st.session_state.last_n = val; st.session_state.next_ky = int(ky_in) + 1; st.rerun()
 
 # --- 6. HIỂN THỊ ---
 if st.session_state.history:
-    results = analyze_v78(st.session_state.history, st.session_state.last_n)
-    tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH & PHÂN TÍCH AI", "📊 NHẬT KÝ ĐẦY ĐỦ"])
+    results = analyze_v79(st.session_state.history, st.session_state.last_n)
+    tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH & TREND 44", "📊 NHẬT KÝ ĐẦY ĐỦ"])
     
     with tab1:
         if results:
@@ -131,20 +137,17 @@ if st.session_state.history:
             cols = st.columns(8)
             for i, r in enumerate(results):
                 with cols[i]:
-                    s3_cl = "sample-ok" if r['c3'] >= 10 else "sample-low"
-                    s4_cl = "sample-ok" if r['c4'] >= 10 else "sample-low"
-                    pr_cl = "sample-ok" if r['c_pair'] >= 10 else "sample-low"
                     st.markdown(f"""
                     <div class='bit-header'>{r['l']}</div>
-                    <div class='bit-card'><b>3K ({r['s3']}):</b> {int(r['p3']*100)}%<br><span class='{s3_cl}'>Mẫu: {r['c3']}</span></div>
-                    <div class='bit-card'><b>4K ({r['s4']}):</b> {int(r['p4']*100)}%<br><span class='{s4_cl}'>Mẫu: {r['c4']}</span></div>
+                    <div class='bit-card'><b>3K:</b> {int(r['p3']*100)}%<br><span class='sample-ok'>Mẫu: {r['c3']}</span></div>
+                    <div class='bit-card'><b>4K:</b> {int(r['p4']*100)}%<br><span class='sample-ok'>Mẫu: {r['c4']}</span></div>
                     <div class='bit-card'><b>10K:</b> {int(r['p_mom']*100)}%</div>
-                    <div class='bit-card'><b>22K:</b> {int(r['p_pair']*100)}%<br><span class='{pr_cl}'>Mẫu: {r['c_pair']}</span></div>
+                    <div class='bit-card'><b>22K:</b> {int(r['p_pair']*100)}%<br><span class='sample-ok'>Mẫu: {r['c_pair']}</span></div>
                     <div class='bit-card' style='background:#e0f2fe; border: 1px solid #000080'><b>Hội tụ: {int(r['f']*100)}%</b></div>
                     """, unsafe_allow_html=True)
             st.divider()
             ca, cb = st.columns([2, 1])
-            st.session_state.num_quan = cb.number_input("Số quân:", value=st.session_state.num_quan, step=1, key="nq_78")
+            st.session_state.num_quan = cb.number_input("Số quân:", value=st.session_state.num_quan, step=1, key="nq_79")
             ca.markdown(f"### 🔥 DÀN TINH ANH {int(st.session_state.num_quan)} SỐ")
             st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(int(st.session_state.num_quan))['S'].tolist())}</div>", unsafe_allow_html=True)
 
@@ -153,5 +156,4 @@ if st.session_state.history:
         for h in sorted(st.session_state.history, key=lambda x: x['Kỳ'], reverse=True):
             b = get_8bit(h["Số"])
             disp.append({"Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"], "Đ.CL": "Lẻ" if b[0] else "Chẵn", "Đu.CL": "Lẻ" if b[1] else "Chẵn", "T.CL": "Lẻ" if b[2] else "Chẵn", "Đ.TB": "To" if b[3] else "Bé", "Đu.TB": "To" if b[4] else "Bé", "T.TB": "To" if b[5] else "Bé", "Hệ": "Thuận" if b[6] else "K.Phải", "Hiệu": "To" if b[7] else "Bé"})
-        if disp:
-            st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
