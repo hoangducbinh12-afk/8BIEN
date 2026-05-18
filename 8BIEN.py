@@ -4,13 +4,13 @@ import numpy as np
 import json
 from datetime import datetime
 
-# --- 1. GIAO DIỆN SIÊU NÉN (COMPACT UI) ---
-st.set_page_config(page_title="8-BIT QUANTUM V6.6", layout="wide")
+# --- 1. GIAO DIỆN CHUẨN V6.7 ---
+st.set_page_config(page_title="8-BIT QUANTUM V6.7", layout="wide")
 st.markdown("""
     <style>
     html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
     .stButton button { 
-        width: 100%; border-radius: 4px; height: 35px; font-weight: 700; 
+        width: 100%; border-radius: 4px; height: 38px; font-weight: 700; 
         background-color: #000080 !important; color: #ffffff !important;
     }
     .dan-box { 
@@ -19,10 +19,10 @@ st.markdown("""
     }
     .bit-card {
         background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 5px;
-        padding: 5px; margin-bottom: 2px; line-height: 1.2;
+        padding: 4px; margin-bottom: 2px; line-height: 1.1;
     }
-    .bit-header { background: #000080; color: white; text-align: center; font-weight: bold; border-radius: 3px; margin-bottom: 3px; }
-    .stNumberInput input, .stTextInput input { height: 35px !important; }
+    .bit-header { background: #000080; color: white; text-align: center; font-weight: bold; border-radius: 3px; margin-bottom: 2px; }
+    .stNumberInput input, .stTextInput input { height: 38px !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -36,26 +36,33 @@ def get_8bit(n):
             1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if (d+u) % 10 >= 5 else 0,
             1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
 
-def analyze_full_quantum(history, last_n):
+def analyze_full_v67(history, last_n):
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
     curr_bits = np.array(get_8bit(last_n))
     results = []
     
     for i in range(8):
-        # 3 Kỳ & 4 Kỳ
+        # Mã chuỗi
         s3 = "".join(map(str, all_bits[-3:, i].astype(int)))
         s4 = "".join(map(str, all_bits[-4:, i].astype(int)))
         
-        # Trọng số 4 kỳ (40%)
-        if s4 == "1111" or (s4.count('1')==3 and s4[-1]==1): p_seq = 0.82
-        elif s4 == "0000" or (s4.count('1')==1 and s4[-1]==0): p_seq = 0.18
-        elif s4 == "0101": p_seq = 0.85
-        elif s4 == "1010": p_seq = 0.15
-        else: p_seq = 0.5
+        # % Nhịp 3K (Tư duy 3 kỳ)
+        if s3 == "111": p3 = 0.75
+        elif s3 == "000": p3 = 0.25
+        elif s3 == "101": p3 = 0.62
+        elif s3 == "010": p3 = 0.38
+        else: p3 = 0.5
         
-        p_mom = np.mean(all_bits[-10:, i]) # 10 kỳ (25%)
+        # % Nhịp 4K (Tư duy 4 kỳ)
+        if s4 == "1111" or (s4.count('1')==3 and s4[-1]==1): p4 = 0.82
+        elif s4 == "0000" or (s4.count('1')==1 and s4[-1]==0): p4 = 0.18
+        elif s4 == "0101": p4 = 0.85
+        elif s4 == "1010": p4 = 0.15
+        else: p4 = 0.5
         
-        p_pair = 0.5 # 22 kỳ (20%)
+        p_mom = np.mean(all_bits[-10:, i]) # 10 kỳ
+        
+        p_pair = 0.5 # 22 kỳ
         if len(history) >= 22:
             seg22 = all_bits[-23:]; pm = []
             for j in range(8):
@@ -64,26 +71,25 @@ def analyze_full_quantum(history, last_n):
                 if m: pm.append(np.mean(m))
             if pm: p_pair = np.mean(pm)
             
-        f_prob = (p_seq * 0.40) + (p_mom * 0.25) + (p_pair * 0.20) + (0.5 * 0.15)
-        results.append({"l": BIT_LABELS[i], "s3": s3, "s4": s4, "p_seq": p_seq, "p_mom": p_mom, "p_pair": p_pair, "f": f_prob})
+        f_prob = (p4 * 0.40) + (p_mom * 0.25) + (p_pair * 0.20) + (0.5 * 0.15)
+        results.append({"l": BIT_LABELS[i], "s3": s3, "p3": p3, "s4": s4, "p4": p4, "p_mom": p_mom, "p_pair": p_pair, "f": f_prob})
     return results
 
 # --- 3. SESSION STATE ---
 if 'history' not in st.session_state: st.session_state.history = []
 if 'last_n' not in st.session_state: st.session_state.last_n = -1
 
-# --- 4. VÙNG CHỈ HUY (DÒNG ĐẦU TIÊN) ---
-st.title("🛡️ QUANTUM MASTER V6.6")
+# --- 4. VÙNG CHỈ HUY (DÒNG 1: NHẬP & PHÂN TÍCH) ---
+st.title("🛡️ QUANTUM MASTER V6.7")
 with st.container():
-    c1, c2, c3, c4 = st.columns([1,1,1,1])
+    c1, c2, c3, c4 = st.columns([1.5, 1.5, 1, 2])
     n_in = c1.text_input("Số nổ:", placeholder="VD: 62")
-    num_quan = c2.number_input("Số quân lấy dàn:", value=50, step=1)
-    ky_in = c3.number_input("Kỳ vừa nổ:", value=st.session_state.history[-1]["Kỳ"] + 1 if st.session_state.history else 1)
-    if c4.button("🚀 PHÂN TÍCH"):
+    if c2.button("🚀 PHÂN TÍCH"):
         if n_in:
             val = int(n_in[-2:])
+            ky_val = st.session_state.history[-1]["Kỳ"] + 1 if st.session_state.history else 1
             if st.session_state.history:
-                res = analyze_full_quantum(st.session_state.history, st.session_state.last_n)
+                res = analyze_full_v67(st.session_state.history, st.session_state.last_n)
                 p = [r["f"] for r in res]
                 scr = []
                 for i in range(100):
@@ -92,12 +98,13 @@ with st.container():
                 df_t = pd.DataFrame(scr).sort_values("M", ascending=False); df_t['R'] = range(1, 101)
                 r_v = df_t[df_t['S'] == f"{val:02d}"]['R'].values[0]
             else: r_v = 0
-            st.session_state.history.append({"Ngày": datetime.now().strftime("%d/%m"), "Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_v)})
+            st.session_state.history.append({"Ngày": datetime.now().strftime("%d/%m"), "Kỳ": int(ky_val), "Số": f"{val:02d}", "Rank": int(r_v)})
             st.session_state.last_n = val; st.rerun()
+    st.write("") # Khoảng trống
 
-# --- 5. HIỂN THỊ ---
+# --- 5. HIỂN THỊ CHÍNH ---
 if st.session_state.history:
-    results = analyze_full_quantum(st.session_state.history, st.session_state.last_n)
+    results = analyze_full_v67(st.session_state.history, st.session_state.last_n)
     probs = [r["f"] for r in results]
     
     res_rank = []
@@ -109,25 +116,29 @@ if st.session_state.history:
     tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH & TRỌNG SỐ", "📊 NHẬT KÝ SIÊU NÉN"])
     
     with tab1:
-        # Hiển thị 8 Bit Compact
+        # Bảng trọng số đa tầng
         cols = st.columns(8)
         for i, r in enumerate(results):
             with cols[i]:
                 st.markdown(f"""
                 <div class='bit-header'>{r['l']}</div>
-                <div class='bit-card'><b>3K:</b> {r['s3']}</div>
-                <div class='bit-card'><b>4K:</b> {r['s4']}</div>
+                <div class='bit-card'><b>3K ({r['s3']}):</b> {int(r['p3']*100)}%</div>
+                <div class='bit-card'><b>4K ({r['s4']}):</b> {int(r['p4']*100)}%</div>
                 <div class='bit-card'><b>10K:</b> {int(r['p_mom']*100)}%</div>
                 <div class='bit-card'><b>22K:</b> {int(r['p_pair']*100)}%</div>
-                <div class='bit-card' style='background:#e0f2fe'><b>Hội tụ: {int(r['f']*100)}%</b></div>
+                <div class='bit-card' style='background:#e0f2fe; border: 1px solid #000080'><b>Hội tụ: {int(r['f']*100)}%</b></div>
                 """, unsafe_allow_html=True)
         
         st.divider()
-        st.markdown(f"**🔥 DÀN TINH ANH {num_quan} SỐ QUÂN (DỰA TRÊN RANK HỘI TỤ)**")
+        
+        # DÒNG TIÊU ĐỀ DÀN & Ô LẤY QUÂN
+        ca, cb = st.columns([2, 1])
+        num_quan = cb.number_input("Số quân lấy dàn:", value=50, step=1, key="num_quan_dan")
+        ca.markdown(f"### 🔥 DÀN TINH ANH {int(num_quan)} SỐ")
+        
         st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(int(num_quan))['S'].tolist())}</div>", unsafe_allow_html=True)
 
     with tab2:
-        # Nhật ký đảo ngược mới nhất lên đầu
         display_data = []
         for h in reversed(st.session_state.history):
             b = get_8bit(h["Số"])
@@ -149,6 +160,5 @@ with st.sidebar:
         st.rerun()
     st.divider()
     if st.button("🔴 RESET"): st.session_state.history = []; st.rerun()
-    st.divider()
     if st.session_state.history:
-        st.download_button("💾 XUẤT MASTER BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v6.6_{datetime.now().strftime('%d%m')}.json")
+        st.download_button("💾 XUẤT BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v6.7_{datetime.now().strftime('%d%m')}.json")
