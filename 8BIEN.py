@@ -4,8 +4,8 @@ import numpy as np
 import json
 from datetime import datetime
 
-# --- 1. GIAO DIỆN CHUẨN V7.2 ---
-st.set_page_config(page_title="8-BIT QUANTUM V7.2", layout="wide")
+# --- 1. GIAO DIỆN CHUẨN V7.3 ---
+st.set_page_config(page_title="8-BIT QUANTUM V7.3", layout="wide")
 st.markdown("""
     <style>
     html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
@@ -27,7 +27,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CORE LOGIC (VỮNG NHƯ BÀN THẠCH) ---
+# --- 2. CORE LOGIC (GIỮ NGUYÊN CHỐT CHẶN 10 LẦN) ---
 SO_THUONG = [2,3,4,6,8,13,15,17,18,19,20,24,25,26,28,30,31,35,37,39,40,42,46,47,48,51,52,53,57,59,60,62,64,68,69,71,73,74,75,79,80,81,82,84,86,91,93,95,96,97]
 BIT_LABELS = ["Đ.CL", "Đu.CL", "T.CL", "Đ.TB", "Đu.TB", "T.TB", "Hệ", "Hi.TB"]
 
@@ -37,7 +37,7 @@ def get_8bit(n):
             1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if (d+u) % 10 >= 5 else 0,
             1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
 
-def analyze_v72(history, last_n):
+def analyze_v73(history, last_n):
     if len(history) < 5: return None
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
     curr_bits = np.array(get_8bit(last_n))
@@ -67,54 +67,71 @@ def analyze_v72(history, last_n):
         results.append({"l": BIT_LABELS[i], "s3": s3, "c3": len(m3), "p3": p3, "s4": s4, "c4": len(m4), "p4": p4, "p_mom": p_mom, "c_pair": len(pm_pair), "p_pair": p_pair, "f": f_prob})
     return results
 
-# --- 3. SESSION STATE ---
+# --- 3. KHỞI TẠO BỘ NHỚ (SESSION STATE) ---
 if 'history' not in st.session_state: st.session_state.history = []
 if 'last_n' not in st.session_state: st.session_state.last_n = -1
 if 'num_quan' not in st.session_state: st.session_state.num_quan = 50
+if 'last_uploaded_file' not in st.session_state: st.session_state.last_uploaded_file = None
 
-# --- 4. VÙNG NHẬP LIỆU (CẢI TIẾN) ---
-st.title("🛡️ 8-BIT QUANTUM V7.2 (DATA KEEPER)")
+# --- 4. ĐIỀU KHIỂN DỮ LIỆU ---
+with st.sidebar:
+    st.header("📂 HỆ THỐNG")
+    up = st.file_uploader("Nạp Master JSON:", type="json")
+    if up is not None and up != st.session_state.last_uploaded_file:
+        data = json.load(up)
+        raw = data.get("history", [])
+        st.session_state.history = sorted([{"Kỳ": int(h.get("Kỳ", 0)), "Số": f"{int(h.get('Số', 0)):02d}", "Rank": int(h.get("Rank", 0))} for h in raw], key=lambda x: x["Kỳ"])
+        if st.session_state.history:
+            st.session_state.last_n = int(st.session_state.history[-1]["Số"])
+        st.session_state.last_uploaded_file = up # Đánh dấu đã nạp xong file này
+        st.rerun()
+
+    if st.button("🔴 RESET TOÀN BỘ"):
+        st.session_state.history = []
+        st.session_state.last_n = -1
+        st.session_state.last_uploaded_file = None
+        st.rerun()
+    
+    if st.session_state.history:
+        st.download_button("💾 XUẤT BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v7.3_full.json")
+
+# --- 5. VÙNG NHẬP LIỆU CẤP TỐC ---
+st.title("🛡️ 8-BIT QUANTUM V7.3 (FINAL PERSISTENCE)")
 with st.container():
     c1, c2, c3, c4 = st.columns([1.5, 1, 1.5, 2])
-    n_in = c1.text_input("Số nổ:", placeholder="VD: 75")
+    n_in = c1.text_input("Số vừa nổ:", placeholder="VD: 75", key="input_so_no")
     
-    # TRẢ LẠI Ô NHẬP KỲ
     default_ky = st.session_state.history[-1]["Kỳ"] + 1 if st.session_state.history else 1
-    ky_in = c2.number_input("Kỳ:", value=default_ky, step=1)
+    ky_in = c2.number_input("Kỳ:", value=default_ky, step=1, key="input_ky_no")
     
-    if c3.button("🚀 PHÂN TÍCH & LƯU"):
+    if c3.button("🚀 PHÂN TÍCH & CHỐT NHẬT KÝ"):
         if n_in:
             val = int(n_in[-2:])
+            r_v = 0
             if st.session_state.history:
-                # Tính Rank cho số vừa nhập dựa trên nhịp trước đó
-                res_temp = analyze_v72(st.session_state.history, st.session_state.last_n)
+                res_temp = analyze_v73(st.session_state.history, st.session_state.last_n)
                 if res_temp:
-                    p_temp = [r["f"] for r in res_temp]
-                    scr = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*p_temp[j] + (1-get_8bit(i)[j])*(1-p_temp[j]) for j in range(8))} for i in range(100)]
+                    p_t = [r["f"] for r in res_temp]
+                    scr = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*p_t[j] + (1-get_8bit(i)[j])*(1-p_t[j]) for j in range(8))} for i in range(100)]
                     df_t = pd.DataFrame(scr).sort_values("M", ascending=False)
                     df_t['R'] = range(1, 101)
                     r_v = df_t[df_t['S'] == f"{val:02d}"]['R'].values[0]
-                else: r_v = 0
-            else: r_v = 0
             
-            # CẬP NHẬT TRỰC TIẾP VÀO LỊCH SỬ
-            st.session_state.history.append({
-                "Kỳ": int(ky_in),
-                "Số": f"{val:02d}",
-                "Rank": int(r_v)
-            })
+            # CHÈN VÀO LỊCH SỬ VÀ GIỮ LẠI (KHÔNG BỊ RESET)
+            new_entry = {"Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_v)}
+            st.session_state.history.append(new_entry)
             st.session_state.last_n = val
             st.rerun()
 
-# --- 5. HIỂN THỊ ---
+# --- 6. HIỂN THỊ KẾT QUẢ ---
 if st.session_state.history:
-    results = analyze_v72(st.session_state.history, st.session_state.last_n)
+    results = analyze_v73(st.session_state.history, st.session_state.last_n)
     if results:
         probs = [r["f"] for r in results]
         res_rank = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*probs[j] + (1-get_8bit(i)[j])*(1-probs[j]) for j in range(8))} for i in range(100)]
         df_rank = pd.DataFrame(res_rank).sort_values("M", ascending=False)
 
-        tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH & XÁC MINH", "📊 NHẬT KÝ SIÊU NÉN"])
+        tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH & XÁC MINH", "📊 NHẬT KÝ LƯU TRỮ"])
         with tab1:
             cols = st.columns(8)
             for i, r in enumerate(results):
@@ -132,26 +149,13 @@ if st.session_state.history:
                     """, unsafe_allow_html=True)
             st.divider()
             ca, cb = st.columns([2, 1])
-            st.session_state.num_quan = cb.number_input("Số quân lấy dàn:", value=st.session_state.num_quan, step=1)
+            st.session_state.num_quan = cb.number_input("Số quân lấy dàn:", value=st.session_state.num_quan, step=1, key="num_quan_input")
             ca.markdown(f"### 🔥 DÀN TINH ANH {int(st.session_state.num_quan)} SỐ")
             st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(int(st.session_state.num_quan))['S'].tolist())}</div>", unsafe_allow_html=True)
 
     with tab2:
-        disp = []
-        # Sắp xếp hiển thị kỳ mới nhất lên đầu
-        for h in sorted(st.session_state.history, key=lambda x: x['Kỳ'], reverse=True):
-            b = get_8bit(h["Số"])
-            disp.append({"Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"], "Mã DNA": "".join(map(str, b))})
-        st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
-
-with st.sidebar:
-    st.header("📂 HỆ THỐNG")
-    up = st.file_uploader("Nạp Master JSON:", type="json")
-    if up:
-        data = json.load(up); raw = data.get("history", [])
-        st.session_state.history = sorted([{"Kỳ": int(h.get("Kỳ", 0)), "Số": f"{int(h.get('Số', 0)):02d}", "Rank": int(h.get("Rank", 0))} for h in raw], key=lambda x: x["Kỳ"])
-        if st.session_state.history: st.session_state.last_n = int(st.session_state.history[-1]["Số"])
-        st.rerun()
-    if st.button("🔴 RESET"): st.session_state.history = []; st.session_state.last_n = -1; st.rerun()
-    if st.session_state.history:
-        st.download_button("💾 XUẤT BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v7.2.json")
+        # Nhật ký sắp xếp kỳ mới nhất lên đầu
+        hist_df = pd.DataFrame(st.session_state.history)
+        if not hist_df.empty:
+            hist_df = hist_df.sort_values(by="Kỳ", ascending=False)
+            st.dataframe(hist_df, use_container_width=True, hide_index=True)
