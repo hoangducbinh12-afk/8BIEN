@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import json
 
-# --- 1. GIAO DIỆN CHUẨN V8.3 ---
-st.set_page_config(page_title="8-BIT QUANTUM V8.3", layout="wide")
+# --- 1. GIAO DIỆN CHUẨN V8.4 (GIỮ NGUYÊN HIỂN THỊ) ---
+st.set_page_config(page_title="8-BIT QUANTUM V8.4", layout="wide")
 st.markdown("""
     <style>
     html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
@@ -29,7 +29,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CORE LOGIC V8.3 ---
+# --- 2. CORE LOGIC V8.4 (CẤU HÌNH TRỌNG SỐ ĐỘNG) ---
 SO_THUONG = [2,3,4,6,8,13,15,17,18,19,20,24,25,26,28,30,31,35,37,39,40,42,46,47,48,51,52,53,57,59,60,62,64,68,69,71,73,74,75,79,80,81,82,84,86,91,93,95,96,97]
 BIT_LABELS = ["Đ.CL", "Đu.CL", "T.CL", "Đ.TB", "Đu.TB", "T.TB", "Hệ", "Hi.TB"]
 
@@ -39,44 +39,47 @@ def get_8bit(n):
             1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if (d+u) % 10 >= 5 else 0,
             1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
 
-def analyze_v83(history, last_n):
+def analyze_v84(history, last_n):
     if len(history) < 10: return None
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
     curr_bits = np.array(get_8bit(last_n))
     results = []
     
-    # CẤU HÌNH SIÊU NHẠY: ĐỒNG LOẠT 11
-    LIMIT_34K = 11  
-    LIMIT_22K = 11  
+    # CẤU HÌNH V8.4: PHƯƠNG PHÁP CÀNG SÂU CÀNG GẮT
+    LIMIT_3K = 15
+    LIMIT_4K = 9
+    WINDOW_22K = 60 # Chỉ quét tương quan trong 60 kỳ gần nhất (~2 tháng)
     MIN_SAMPLE = 3
 
     for i in range(8):
-        # 3K (11 mẫu gần nhất)
+        # 3K (15 mẫu gần nhất)
         s3 = "".join(map(str, all_bits[-3:, i].astype(int)))
         m3 = [all_bits[k+3, i] for k in range(len(all_bits)-4) if "".join(map(str, all_bits[k:k+3, i].astype(int))) == s3]
-        m3_lim = m3[-LIMIT_34K:]
+        m3_lim = m3[-LIMIT_3K:]
         p3 = np.mean(m3_lim) if len(m3_lim) > 0 else 0.5
 
-        # 4K (11 mẫu gần nhất)
+        # 4K (9 mẫu gần nhất - CỰC GẮT)
         s4 = "".join(map(str, all_bits[-4:, i].astype(int)))
         m4 = [all_bits[k+4, i] for k in range(len(all_bits)-5) if "".join(map(str, all_bits[k:k+4, i].astype(int))) == s4]
-        m4_lim = m4[-LIMIT_34K:]
+        m4_lim = m4[-LIMIT_4K:]
         p4 = np.mean(m4_lim) if len(m4_lim) > 0 else 0.5
 
-        # 10K (Nhịp nóng)
+        # 10K (Nhịp nóng - Trọng số cao)
         p_mom = np.mean(all_bits[-10:, i])
 
-        # 22K (Tương quan cặp - 11 mẫu)
+        # 22K (Tương quan cặp trong 60 kỳ gần nhất)
+        hist_limited = all_bits[-WINDOW_22K:]
         all_matches_22k = []
         for j in range(8):
             if i == j: continue
-            matches = [all_bits[k+1, i] for k in range(len(all_bits)-1) if all_bits[k, i] == curr_bits[i] and all_bits[k, j] == curr_bits[j]]
-            all_matches_22k.extend(matches[-LIMIT_22K:])
+            matches = [hist_limited[k+1, i] for k in range(len(hist_limited)-1) if hist_limited[k, i] == curr_bits[i] and hist_limited[k, j] == curr_bits[j]]
+            all_matches_22k.extend(matches)
         
         p_pair = np.mean(all_matches_22k) if len(all_matches_22k) > 0 else 0.5
 
-        # Hội tụ
-        f_prob = (p4 * 0.40) + (p3 * 0.20) + (p_mom * 0.25) + (p_pair * 0.15)
+        # CÔNG THỨC HỘI TỤ ĐỘNG V8.4
+        f_prob = (p4 * 0.50) + (p_mom * 0.30) + (p3 * 0.10) + (p_pair * 0.10)
+        
         results.append({
             "l": BIT_LABELS[i], 
             "c3": len(m3_lim), "p3": p3, 
@@ -90,12 +93,12 @@ def analyze_v83(history, last_n):
 # --- 3. SESSION STATE ---
 if 'history' not in st.session_state: st.session_state.history = []
 if 'last_n' not in st.session_state: st.session_state.last_n = -1
-if 'num_quan' not in st.session_state: st.session_state.num_quan = 50
+if 'num_quan' not in st.session_state: st.session_state.num_quan = 59
 if 'next_ky' not in st.session_state: st.session_state.next_ky = 1
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.header("📂 HỆ THỐNG V8.3")
+    st.header("📂 HỆ THỐNG V8.4")
     up = st.file_uploader("Nạp Master (2278 kỳ):", type="json")
     if up:
         data = json.load(up); raw = data.get("history", [])
@@ -106,16 +109,16 @@ with st.sidebar:
         st.session_state.history = []; st.session_state.last_n = -1; st.session_state.next_ky = 1; st.rerun()
 
 # --- 5. NHẬP LIỆU ---
-st.title("🛡️ 8-BIT QUANTUM V8.3 - HYPER TREND (11-11)")
+st.title("🛡️ 8-BIT QUANTUM V8.4 - DYNAMIC MOMENTUM")
 c1, c2, c3, c4 = st.columns([1.5, 1, 1.5, 2])
-n_in = c1.text_input("Số vừa nổ:", key="in_so_83")
+n_in = c1.text_input("Số vừa nổ:", key="in_so_84")
 ky_in = c2.number_input("Kỳ:", value=st.session_state.next_ky, step=1)
 
 if c3.button("🚀 PHÂN TÍCH"):
     if n_in:
         val = int(n_in[-2:]); r_v = 0
         if st.session_state.history:
-            res_temp = analyze_v83(st.session_state.history, st.session_state.last_n)
+            res_temp = analyze_v84(st.session_state.history, st.session_state.last_n)
             if res_temp:
                 p_t = [r["f"] for r in res_temp]
                 scr = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*p_t[j] + (1-get_8bit(i)[j])*(1-p_t[j]) for j in range(8))} for i in range(100)]
@@ -126,9 +129,9 @@ if c3.button("🚀 PHÂN TÍCH"):
 
 # --- 6. HIỂN THỊ ---
 if st.session_state.history:
-    results = analyze_v83(st.session_state.history, st.session_state.last_n)
+    results = analyze_v84(st.session_state.history, st.session_state.last_n)
     if results:
-        tab1, tab2 = st.tabs(["🎯 PHÂN TÍCH NHỊP", "📊 NHẬT KÝ ĐẦY ĐỦ"])
+        tab1, tab2 = st.tabs(["🎯 PHÂN TÍCH CHỐT", "📊 NHẬT KÝ ĐẦY ĐỦ"])
         with tab1:
             probs = [r["f"] for r in results]
             res_rank = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*probs[j] + (1-get_8bit(i)[j])*(1-probs[j]) for j in range(8))} for i in range(100)]
