@@ -4,8 +4,8 @@ import numpy as np
 import json
 from datetime import datetime
 
-# --- 1. GIAO DIỆN V7.7 ---
-st.set_page_config(page_title="8-BIT QUANTUM V7.7", layout="wide")
+# --- 1. GIAO DIỆN V7.8 (GIỮ NGUYÊN GIAO DIỆN V7.7) ---
+st.set_page_config(page_title="8-BIT QUANTUM V7.8", layout="wide")
 st.markdown("""
     <style>
     html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.72rem !important; }
@@ -41,7 +41,7 @@ def get_8bit(n):
             1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if (d+u) % 10 >= 5 else 0,
             1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
 
-def analyze_v77(history, last_n):
+def analyze_v78(history, last_n):
     if len(history) < 5: return None
     all_bits = np.array([get_8bit(h["Số"]) for h in history])
     curr_bits = np.array(get_8bit(last_n))
@@ -88,39 +88,39 @@ with st.sidebar:
     if st.button("🔴 RESET"):
         st.session_state.history = []; st.session_state.last_n = -1; st.session_state.next_ky = 1; st.session_state.last_up = None; st.rerun()
     if st.session_state.history:
-        st.download_button("💾 XUẤT BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v7.7.json")
+        st.download_button("💾 XUẤT BACKUP", json.dumps({"history": st.session_state.history}), f"8bit_v7.8.json")
 
-# --- 5. NHẬP LIỆU & TỰ ĐỘNG NHẢY ---
-st.title("🛡️ 8-BIT QUANTUM V7.7")
+# --- 5. NHẬP LIỆU & TỰ ĐỘNG NHẢY KỲ (FIXED) ---
+st.title("🛡️ 8-BIT QUANTUM V7.8")
 with st.container():
     c1, c2, c3, c4 = st.columns([1.5, 1, 1.5, 2])
-    n_in = c1.text_input("Số vừa nổ:", placeholder="75", key="in_so_77")
+    n_in = c1.text_input("Số vừa nổ:", placeholder="75", key="in_so_78")
     
-    # Ô Kỳ lấy giá trị từ session_state và có key để đồng bộ
-    ky_in = c2.number_input("Kỳ:", value=st.session_state.next_ky, step=1, key="ky_widget_77")
+    # SỬA LỖI NHẢY KỲ: Dùng session_state trực tiếp không thông qua widget key tĩnh
+    ky_in = c2.number_input("Kỳ:", value=st.session_state.next_ky, step=1)
     
     if c3.button("🚀 PHÂN TÍCH & LƯU"):
         if n_in:
             val = int(n_in[-2:]); r_v = 0
-            # Phân tích Rank dựa trên dữ liệu cũ (nếu có)
             if st.session_state.history:
-                res_temp = analyze_v77(st.session_state.history, st.session_state.last_n)
+                res_temp = analyze_v78(st.session_state.history, st.session_state.last_n)
                 if res_temp:
                     p_t = [r["f"] for r in res_temp]
                     scr = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*p_t[j] + (1-get_8bit(i)[j])*(1-p_t[j]) for j in range(8))} for i in range(100)]
                     df_t = pd.DataFrame(scr).sort_values("M", ascending=False); df_t['R'] = range(1, 101)
                     r_v = df_t[df_t['S'] == f"{val:02d}"]['R'].values[0]
             
-            # Lưu vào lịch sử & Cập nhật session_state ngay lập tức
+            # Cập nhật lịch sử
             st.session_state.history.append({"Kỳ": int(ky_in), "Số": f"{val:02d}", "Rank": int(r_v)})
             st.session_state.last_n = val
+            # Cập nhật Kỳ tiếp theo vào bộ nhớ
             st.session_state.next_ky = int(ky_in) + 1
+            # Ép App chạy lại để nhận giá trị next_ky mới cho ô number_input
             st.rerun()
 
-# --- 6. HIỂN THỊ (CÓ BẪY LỖI TRỐNG) ---
+# --- 6. HIỂN THỊ ---
 if st.session_state.history:
-    results = analyze_v77(st.session_state.history, st.session_state.last_n)
-    
+    results = analyze_v78(st.session_state.history, st.session_state.last_n)
     tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH & PHÂN TÍCH AI", "📊 NHẬT KÝ ĐẦY ĐỦ"])
     
     with tab1:
@@ -128,7 +128,6 @@ if st.session_state.history:
             probs = [r["f"] for r in results]
             res_rank = [{"S": f"{i:02d}", "M": sum(get_8bit(i)[j]*probs[j] + (1-get_8bit(i)[j])*(1-probs[j]) for j in range(8))} for i in range(100)]
             df_rank = pd.DataFrame(res_rank).sort_values("M", ascending=False)
-
             cols = st.columns(8)
             for i, r in enumerate(results):
                 with cols[i]:
@@ -145,11 +144,9 @@ if st.session_state.history:
                     """, unsafe_allow_html=True)
             st.divider()
             ca, cb = st.columns([2, 1])
-            st.session_state.num_quan = cb.number_input("Số quân:", value=st.session_state.num_quan, step=1, key="nq_77")
+            st.session_state.num_quan = cb.number_input("Số quân:", value=st.session_state.num_quan, step=1, key="nq_78")
             ca.markdown(f"### 🔥 DÀN TINH ANH {int(st.session_state.num_quan)} SỐ")
             st.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(int(st.session_state.num_quan))['S'].tolist())}</div>", unsafe_allow_html=True)
-        else:
-            st.info("Cần thêm dữ liệu (ít nhất 5 kỳ) để bắt đầu phân tích AI.")
 
     with tab2:
         disp = []
