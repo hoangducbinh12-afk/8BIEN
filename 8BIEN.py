@@ -5,25 +5,25 @@ import json
 from datetime import datetime
 from itertools import combinations
 
-# --- 1. GIAO DIỆN CHUẨN (V5.2) ---
-st.set_page_config(page_title="8-BIT DNA MASTER V5.2", layout="wide")
+# --- 1. GIAO DIỆN CHUẨN (NỀN TRẮNG - NÚT XANH NAVY) ---
+st.set_page_config(page_title="8-BIT MOMENTUM V5.5", layout="wide")
 st.markdown("""
     <style>
     html, body, [class*="st-"] { color: #000000 !important; background-color: #ffffff !important; font-size: 0.8rem !important; }
     .stButton button { 
-        width: 100%; border-radius: 6px; height: 42px; font-weight: 700; 
-        background-color: #0047AB !important; color: #ffffff !important; border: none !important;
+        width: 100%; border-radius: 6px; height: 45px; font-weight: 700; 
+        background-color: #000080 !important; color: #ffffff !important; border: none !important;
     }
     .dan-box { 
-        background-color: #f1f5f9; border: 2px solid #0047AB; border-radius: 8px; 
-        padding: 12px; font-family: monospace; font-weight: 700; color: #0047AB; 
-        text-align: center; font-size: 1rem;
+        background-color: #f8f9fa; border: 2px solid #000080; border-radius: 8px; 
+        padding: 12px; font-family: 'Courier New', monospace; font-weight: 700; 
+        color: #000080; text-align: center; font-size: 1.1rem;
     }
-    .dna-tag { background-color: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; }
+    .metric-card { background-color: #f0f4f8; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; text-align: center; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. TƯ DUY 44 DẠNG BIT (DNA ENGINE) ---
+# --- 2. CORE LOGIC (44 DẠNG DNA) ---
 SO_THUONG = [2,3,4,6,8,13,15,17,18,19,20,24,25,26,28,30,31,35,37,39,40,42,46,47,48,51,52,53,57,59,60,62,64,68,69,71,73,74,75,79,80,81,82,84,86,91,93,95,96,97]
 BIT_LABELS = ["Đ.CL", "Đu.CL", "T.CL", "Đ.TB", "Đu.TB", "T.TB", "Hệ", "Hi.TB"]
 
@@ -34,51 +34,48 @@ def get_8bit(n):
             1 if d >= 5 else 0, 1 if u >= 5 else 0, 1 if (d+u) % 10 >= 5 else 0,
             1 if val in SO_THUONG else 0, 1 if (d-u+10) % 10 >= 5 else 0]
 
-# Tạo bản đồ 44 dạng DNA
-@st.cache_resource
-def get_dna_map():
-    dna_map = {}
-    for i in range(100):
-        code = tuple(get_8bit(i))
-        if code not in dna_map: dna_map[code] = []
-        dna_map[code].append(f"{i:02d}")
-    return dna_map
-
-DNA_CHART = get_dna_map()
-
-# --- 3. QUANTUM ENGINE V5.2 ---
-def quantum_core(history, last_n):
+# --- 3. BỘ NÃO MOMENTUM V5.5 (TÍNH TOÁN THEO Ý MÀY) ---
+def analyze_momentum_quantum(history, last_n):
     if len(history) < 2: return [0.5]*8, []
-    bits_data = np.array([get_8bit(h["Số"]) for h in history])
+    
+    all_bits = np.array([get_8bit(h["Số"]) for h in history])
     current_bits = np.array(get_8bit(last_n))
+    
+    # 1. TÍNH XÁC SUẤT BỆT 10 KỲ (MOMENTUM)
+    seg10 = all_bits[-10:]
+    momentum_probs = np.mean(seg10, axis=0) # Tỷ lệ nổ 1 trong 10 kỳ
+    
+    # 2. QUÉT TRẠNG THÁI KỲ SAU (TRANSITION)
     final_probs = np.zeros(8)
-    insights = []
-
-    # Quét Đơn (10k) & Quét Cặp (22k)
-    seg10 = bits_data[-11:]
+    
+    # Tầng 1: Nếu nhịp đang bệt (Tỷ lệ > 60% hoặc < 40%), ưu tiên bệt tiếp
     for i in range(8):
-        m = [seg10[k+1] for k in range(len(seg10)-1) if seg10[k][i] == current_bits[i]]
-        if m: final_probs += np.mean(m, axis=0) * 0.4
-
+        if momentum_probs[i] >= 0.6: final_probs[i] += 0.7  # Xu hướng bệt 1
+        elif momentum_probs[i] <= 0.4: final_probs[i] += 0.3 # Xu hướng bệt 0
+        else: final_probs[i] += 0.5 # Nhịp loạn
+    
+    # Tầng 2: Đối chiếu lịch sử 22 kỳ (Cố định 2-Bit)
+    insights = []
     if len(history) >= 22:
-        seg22 = bits_data[-23:]
+        seg22 = all_bits[-23:]
         for i, j in combinations(range(8), 2):
-            m = [seg22[k+1] for k in range(len(seg22)-1) if seg22[k][i] == current_bits[i] and seg22[k][j] == current_bits[j]]
-            if m:
-                r = np.mean(m, axis=0)
-                final_probs += r * 0.6
-                if np.max(r) >= 0.85: insights.append(f"Cặp {BIT_LABELS[i]}-{BIT_LABELS[j]}: {int(np.max(r)*100)}%")
+            matches = [seg22[k+1] for k in range(len(seg22)-1) if seg22[k][i] == current_bits[i] and seg22[k][j] == current_bits[j]]
+            if matches:
+                r = np.mean(matches, axis=0)
+                final_probs += r * 0.5
+                if np.max(r) >= 0.85:
+                    insights.append(f"{BIT_LABELS[i]}-{BIT_LABELS[j]}: {int(np.max(r)*100)}%")
 
-    return np.clip(final_probs / (1.0 if len(history) < 22 else 1.2), 0.05, 0.95).tolist(), insights
+    return np.clip(final_probs / 1.5, 0.05, 0.95).tolist(), insights
 
 # --- 4. APP MAIN ---
 if 'history' not in st.session_state: st.session_state.history = []
 if 'last_n' not in st.session_state: st.session_state.last_n = -1
 
-st.title("🛡️ 8-BIT DNA ARCHITECT V5.2")
+st.title("🛡️ 8-BIT MOMENTUM DNA V5.5")
 
 with st.sidebar:
-    st.header("📂 HỆ THỐNG")
+    st.header("📂 DỮ LIỆU")
     up = st.file_uploader("Nạp Master JSON:", type="json")
     if up:
         data = json.load(up); raw = data.get("history", [])
@@ -89,14 +86,15 @@ with st.sidebar:
 # NHẬP LIỆU
 with st.container():
     c1, c2, c3 = st.columns(3)
-    n_in = c1.text_input("Số vừa nổ:")
+    n_in = c1.text_input("Số vừa về:")
     next_ky = st.session_state.history[-1]["Kỳ"] + 1 if st.session_state.history else 1
-    k_in = c2.number_input("Kỳ:", value=next_ky)
-    if st.button("🚀 PHÂN TÍCH DNA"):
+    k_in = c2.number_input("Kỳ tiếp theo:", value=next_ky)
+    
+    if st.button("🚀 PHÂN TÍCH NHỊP BỆT"):
         if n_in:
             val = int(n_in[-2:])
             if st.session_state.history:
-                p, _ = quantum_core(st.session_state.history, st.session_state.last_n)
+                p, _ = analyze_momentum_quantum(st.session_state.history, st.session_state.last_n)
                 scr = []
                 for i in range(100):
                     b = get_8bit(i); m = sum(b[j]*p[j] + (1-b[j])*(1-p[j]) for j in range(8))
@@ -104,38 +102,39 @@ with st.container():
                 df_t = pd.DataFrame(scr).sort_values("M", ascending=False); df_t['R'] = range(1, 101)
                 r_v = df_t[df_t['S'] == f"{val:02d}"]['R'].values[0]
             else: r_v = 0
-            st.session_state.history.append({"Ngày": datetime.now().strftime("%d/%m"), "Kỳ": int(k_in), "Số": f"{val:02d}", "Rank": int(r_v)})
+            st.session_state.history.append({"Ngày": datetime.now().strftime("%d/%m"), "Kỳ": int(k_in)-1, "Số": f"{val:02d}", "Rank": int(r_v)})
             st.session_state.last_n = val; st.rerun()
 
 if st.session_state.history:
-    probs, insights = quantum_core(st.session_state.history, st.session_state.last_n)
+    probs, insights = analyze_momentum_quantum(st.session_state.history, st.session_state.last_n)
     res = []
     for i in range(100):
         b = get_8bit(i); m = sum(b[j]*probs[j] + (1-b[j])*(1-probs[j]) for j in range(8))
         res.append({"S": f"{i:02d}", "M": m})
     df_rank = pd.DataFrame(res).sort_values("M", ascending=False)
 
-    t1, t2, t3 = st.tabs(["🎯 DÀN TINH ANH", "🔬 GIẢI MÃ DNA (44 DẠNG)", "📊 NHẬT KÝ"])
+    tab1, tab2 = st.tabs(["🎯 DÀN TINH ANH (MOMENTUM)", "📊 NHẬT KÝ 11 CỘT"])
     
-    with t1:
-        st.write(f"🔢 Số gốc: **{st.session_state.last_n:02d}** | DNA: **{len(DNA_CHART[tuple(get_8bit(st.session_state.last_n))])} số chung nhóm**")
-        ms = st.columns(8)
-        for i, (l, p) in enumerate(zip(BIT_LABELS, probs)): ms[i].metric(l, f"{int(p*100)}%")
+    with tab1:
+        st.subheader(f"🔢 Nhịp bệt từ số: {st.session_state.last_n:02d}")
+        cols = st.columns(8)
+        for i, (l, p) in enumerate(zip(BIT_LABELS, probs)):
+            cols[i].metric(l, f"{int(p*100)}%")
+        
         st.divider()
         da, db = st.columns(2)
         da.markdown("**🔥 DÀN A (50 SỐ)**"); da.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(50)['S'].tolist())}</div>", unsafe_allow_html=True)
         db.markdown("**💎 DÀN B (36 SỐ)**"); db.markdown(f"<div class='dan-box'>{' '.join(df_rank.head(36)['S'].tolist())}</div>", unsafe_allow_html=True)
+        if insights: st.info("⚡ Tổ hợp 2-bit bùng nổ: " + " | ".join(insights[:5]))
 
-    with t2:
-        st.subheader("Bản đồ 44 dạng Bit (DNA Cluster)")
-        for code, members in DNA_CHART.items():
-            if f"{st.session_state.last_n:02d}" in members:
-                st.info(f"🧬 Nhóm DNA hiện tại của số {st.session_state.last_n:02d} gồm: {', '.join(members)}")
-        if insights: st.success("⚡ Các cặp nhịp bùng nổ: " + " | ".join(insights))
-
-    with t3:
+    with tab2:
         disp = []
         for h in reversed(st.session_state.history):
-            b = get_8bit(h["Số"]); code = tuple(b)
-            disp.append({"Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"], "DNA": len(DNA_CHART[code]), "Nhịp": "".join([str(x) for x in b])})
-        st.dataframe(pd.DataFrame(disp), use_container_width=True)
+            b = get_8bit(h["Số"])
+            disp.append({
+                "Kỳ": h["Kỳ"], "Số": h["Số"], "Rank": h["Rank"],
+                "Đ.CL": "L" if b[0] else "C", "Đu.CL": "L" if b[1] else "C", "T.CL": "L" if b[2] else "C",
+                "Đ.TB": "T" if b[3] else "B", "Đu.TB": "T" if b[4] else "B", "T.TB": "T" if b[5] else "B",
+                "Hệ": "Th" if b[6] else "Kp", "Hi.TB": "T" if b[7] else "B"
+            })
+        st.dataframe(pd.DataFrame(disp), use_container_width=True, hide_index=True)
